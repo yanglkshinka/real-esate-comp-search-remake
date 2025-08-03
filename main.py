@@ -511,9 +511,6 @@ def main():
                         "- Track comparable properties (comps)\n"
                         "- Perform distance analysis\n"
                         "- Send data to Podio CRM\n\n"
-                        "**Test Credentials:**\n"
-                        "- Username: admin\n"
-                        "- Password: password123"
                     )
     
     # Check if user is logged in before showing other tabs content
