@@ -1074,6 +1074,10 @@ st.set_page_config(
 # === Session State Initialization ===
 def init_session_state():
     """Initialize all session state variables at the start"""
+    # Tab state
+    if 'active_tab' not in st.session_state:
+        st.session_state.active_tab = "Distance Analysis"  # Default to the main tab
+    
     # Candidate selection state
     if 'selected_candidate_idx' not in st.session_state:
         st.session_state.selected_candidate_idx = None
@@ -1469,9 +1473,9 @@ def main():
     st.markdown("Add candidate and comp properties with automatic coordinate enrichment and distance analysis.")
     
     # Configuration
-    bucket_name =  'lonestar-realestate-test' # 'shinka-realestate-gold'
+    bucket_name = 'shinka-realestate-gold'
     candidate_file = 'candidate/candidate.json'
-    comp_file = 'comps/comp.json'
+    comp_file = 'comps/comps.json'
     
     # Initialize S3 client
     s3_client = init_s3_client()
@@ -1687,31 +1691,33 @@ def main():
             
             with filter_col1:
                 st.write("**Distance Filter**")
-                st.session_state.enable_distance_filter = st.checkbox(
+                enable_distance_filter = st.checkbox(
                     "Enable Distance Filter", 
                     value=st.session_state.enable_distance_filter,
                     key="distance_filter_checkbox"
                 )
                 
-                if st.session_state.enable_distance_filter:
-                    st.session_state.max_distance = st.slider(
+                if enable_distance_filter:
+                    max_distance = st.slider(
                         "Max Distance (mi)", 
                         0.5, 50.0, 
                         value=st.session_state.max_distance, 
                         step=0.5,
                         key="distance_slider"
                     )
+                else:
+                    max_distance = None
             
             with filter_col2:
                 st.write("**Price Filter (Comps)**")
-                st.session_state.enable_price_filter = st.checkbox(
+                enable_price_filter = st.checkbox(
                     "Enable Price Filter", 
                     value=st.session_state.enable_price_filter,
                     key="price_filter_checkbox"
                 )
                 
-                if st.session_state.enable_price_filter:
-                    st.session_state.price_range = st.slider(
+                if enable_price_filter:
+                    price_range = st.slider(
                         "Comp Price Range ($)", 
                         0, 2000000, 
                         value=st.session_state.price_range, 
@@ -1719,47 +1725,47 @@ def main():
                         format="$%d",
                         key="price_range_slider"
                     )
-                    price_min, price_max = st.session_state.price_range
+                    price_min, price_max = price_range
                 else:
                     price_min = price_max = None
             
             with filter_col3:
                 st.write("**Size Filter (Comps)**")
-                st.session_state.enable_size_filter = st.checkbox(
+                enable_size_filter = st.checkbox(
                     "Enable Size Filter", 
                     value=st.session_state.enable_size_filter,
                     key="size_filter_checkbox"
                 )
                 
-                if st.session_state.enable_size_filter:
-                    st.session_state.size_range = st.slider(
+                if enable_size_filter:
+                    size_range = st.slider(
                         "Comp Size Range (sqft)", 
                         200, 10000, 
                         value=st.session_state.size_range, 
                         step=50,
                         key="size_range_slider"
                     )
-                    size_min, size_max = st.session_state.size_range
+                    size_min, size_max = size_range
                 else:
                     size_min = size_max = None
             
             with filter_col4:
                 st.write("**Year Filter (Comps)**")
-                st.session_state.enable_year_filter = st.checkbox(
+                enable_year_filter = st.checkbox(
                     "Enable Year Filter", 
                     value=st.session_state.enable_year_filter,
                     key="year_filter_checkbox"
                 )
                 
-                if st.session_state.enable_year_filter:
-                    st.session_state.year_range = st.slider(
+                if enable_year_filter:
+                    year_range = st.slider(
                         "Comp Year Range", 
                         1900, 2030, 
                         value=st.session_state.year_range, 
                         step=1,
                         key="year_range_slider"
                     )
-                    year_min, year_max = st.session_state.year_range
+                    year_min, year_max = year_range
                 else:
                     year_min = year_max = None
             
@@ -1781,11 +1787,9 @@ def main():
                 # Search box for candidates
                 search_term = st.text_input(
                     "🔍 Search candidates by address", 
-                    value=st.session_state.search_term,
                     placeholder="Type to search...",
                     key="candidate_search_input"
                 )
-                st.session_state.search_term = search_term
                 
                 # Filter candidates by search term
                 display_candidates = candidates
@@ -1801,10 +1805,8 @@ def main():
                     page_num = st.selectbox(
                         f"Page (showing {len(display_candidates)} candidates)", 
                         range(1, total_pages + 1), 
-                        index=min(st.session_state.page_number - 1, total_pages - 1),
                         key="page_selector"
                     )
-                    st.session_state.page_number = page_num
                     start_idx = (page_num - 1) * candidates_per_page
                     end_idx = start_idx + candidates_per_page
                     page_candidates = display_candidates[start_idx:end_idx]
@@ -1891,7 +1893,7 @@ def main():
                             st.metric("Built", selected_candidate['Year Built'])
                     
                     # Apply all filters to comps including distance
-                    distance_filter = st.session_state.max_distance if st.session_state.enable_distance_filter else None
+                    distance_filter = max_distance if enable_distance_filter else None
                     filtered_comps = filter_comps(
                         comps, selected_candidate, price_min, price_max, size_min, size_max, 
                         year_min, year_max, distance_filter
@@ -1918,14 +1920,14 @@ def main():
                     
                     # Add filter criteria
                     filter_parts = []
-                    if st.session_state.enable_price_filter:
+                    if enable_price_filter:
                         filter_parts.append(f"Price ${price_min:,} - ${price_max:,}")
-                    if st.session_state.enable_size_filter:
+                    if enable_size_filter:
                         filter_parts.append(f"Size {size_min:,} - {size_max:,} sqft")
-                    if st.session_state.enable_year_filter:
+                    if enable_year_filter:
                         filter_parts.append(f"Year {year_min} - {year_max}")
-                    if st.session_state.enable_distance_filter:
-                        filter_parts.append(f"Max Distance {st.session_state.max_distance} mi")
+                    if enable_distance_filter:
+                        filter_parts.append(f"Max Distance {max_distance} mi")
                     
                     criteria_text = "**Ideal Comp Criteria:** " + ", ".join(criteria_parts)
                     if filter_parts:
