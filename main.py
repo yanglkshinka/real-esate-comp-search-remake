@@ -795,7 +795,6 @@ def main():
                                         background-color: {'#f0f8ff' if is_selected else '#f9f9f9'};">
                                     <div style="font-weight: bold; font-size: 0.9rem; margin-bottom: 0.25rem;">
                                         {candidate['Address']}
-                                    </div>
                                     <div style="font-size: 0.8rem; color: #666;">
                                         {candidate['Size (sqft)']:,} sqft • ${candidate['Price']:,} • 
                                         ${candidate.get('Price/SqFt', 0):.0f}/sqft
