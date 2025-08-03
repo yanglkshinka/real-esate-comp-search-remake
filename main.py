@@ -450,7 +450,7 @@ def main():
         return candidates, comps
     
     candidates, comps = load_data()
-    
+
     # Main content tabs - always show tabs but control content
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["🔐 Login", "📝 Add Property", "🏠 Candidates", "📊 Comps", "📏 Distance Analysis"])
     
@@ -466,8 +466,9 @@ def main():
             col1, col2 = st.columns([1, 3])
             with col1:
                 if st.button("🚪 Logout", type="secondary"):
-                    st.session_state.logged_in = False
-                    st.session_state.username = None
+                    # Clear all session state on logout
+                    for key in list(st.session_state.keys()):
+                        del st.session_state[key]
                     st.rerun()
             with col2:
                 st.markdown("### Quick Navigation")
@@ -515,7 +516,10 @@ def main():
                         "- Username: admin\n"
                         "- Password: password123"
                     )
-    
+        
+        # IMPORTANT: Stop here - no more content should appear in this tab
+        # The property form you're seeing is a bug and should not be here
+
     # Check if user is logged in before showing other tabs content
     if not st.session_state.logged_in:
         # Show message in other tabs if not logged in
@@ -534,6 +538,7 @@ def main():
         with tab5:
             st.warning("🔒 Please log in first to access this feature.")
             st.info("Go to the Login tab to enter your credentials (admin/password123).")
+    
     else:
         # User is logged in, show all functionality
         # === TAB 2: Add Property ===
@@ -547,162 +552,162 @@ def main():
                 format_func=lambda x: "Candidate" if x == "candidate" else "Comp",
                 key="property_type_selector"
             )
-        
-        with st.form("property_form", clear_on_submit=True):
-            col1, col2 = st.columns(2)
             
-            with col1:
-                address = st.text_input(
-                    "Address *",
-                    placeholder="e.g., 123 Main St, Houston, TX 77001",
-                    help="Enter the full property address (Required)"
-                )
+            with st.form("property_form", clear_on_submit=True):
+                col1, col2 = st.columns(2)
                 
-                size_sqft = st.number_input(
-                    "Size (sq ft) *",
-                    min_value=1,
-                    value=None,
-                    placeholder="e.g., 2500"
-                )
-                
-                price = st.number_input(
-                    "Price ($) *",
-                    min_value=0,
-                    value=None,
-                    step=1000,
-                    placeholder="e.g., 350000"
-                )
-                
-                # Conditional date input based on property type
-                if property_type == "candidate":
-                    listing_date = st.date_input(
-                        "Listing Date *",
-                        value=date.today(),
-                        help="Date when the property was listed"
+                with col1:
+                    address = st.text_input(
+                        "Address *",
+                        placeholder="e.g., 123 Main St, Houston, TX 77001",
+                        help="Enter the full property address (Required)"
                     )
-                else:
-                    sold_date = st.date_input(
-                        "Sold Date *",
-                        value=date.today(),
-                        help="Date when the property was sold"
+                    
+                    size_sqft = st.number_input(
+                        "Size (sq ft) *",
+                        min_value=1,
+                        value=None,
+                        placeholder="e.g., 2500"
                     )
-            
-            with col2:
-                bedrooms = st.number_input(
-                    "Bedrooms (optional)",
-                    min_value=0,
-                    max_value=20,
-                    value=None
-                )
+                    
+                    price = st.number_input(
+                        "Price ($) *",
+                        min_value=0,
+                        value=None,
+                        step=1000,
+                        placeholder="e.g., 350000"
+                    )
+                    
+                    # Conditional date input based on property type
+                    if property_type == "candidate":
+                        listing_date = st.date_input(
+                            "Listing Date *",
+                            value=date.today(),
+                            help="Date when the property was listed"
+                        )
+                    else:
+                        sold_date = st.date_input(
+                            "Sold Date *",
+                            value=date.today(),
+                            help="Date when the property was sold"
+                        )
                 
-                year_built = st.number_input(
-                    "Year Built (optional)",
-                    min_value=1800,
-                    max_value=2030,
-                    value=None
-                )
-                story = st.number_input(
-                    "Story (optional)",
-                    min_value=1,
-                    max_value=10,
-                    value=None,
-                    help="Number of stories/floors in the property"
-                )                
-                agent_name = st.text_input(
-                    "Agent Name (optional)",
-                    placeholder="e.g., John Smith"
-                )
-                
+                with col2:
+                    bedrooms = st.number_input(
+                        "Bedrooms (optional)",
+                        min_value=0,
+                        max_value=20,
+                        value=None
+                    )
+                    
+                    year_built = st.number_input(
+                        "Year Built (optional)",
+                        min_value=1800,
+                        max_value=2030,
+                        value=None
+                    )
+                    story = st.number_input(
+                        "Story (optional)",
+                        min_value=1,
+                        max_value=10,
+                        value=None,
+                        help="Number of stories/floors in the property"
+                    )                
+                    agent_name = st.text_input(
+                        "Agent Name (optional)",
+                        placeholder="e.g., John Smith"
+                    )
+                    
 
+                    
+                    # Auto-calculate price per sq ft
+                    if size_sqft and price:
+                        price_per_sqft = round(price / size_sqft, 2)
+                        st.metric("Price/SqFt (calculated)", f"${price_per_sqft}")
                 
-                # Auto-calculate price per sq ft
-                if size_sqft and price:
-                    price_per_sqft = round(price / size_sqft, 2)
-                    st.metric("Price/SqFt (calculated)", f"${price_per_sqft}")
-            
-            # Submit button with dynamic text
-            button_text = f"Add {property_type.title()}"
-            submitted = st.form_submit_button(
-                button_text, 
-                type="primary",
-                use_container_width=True
-            )
-            
-            if submitted:
-                # Check for mandatory fields
-                missing_fields = []
-                if not address or address.strip() == "":
-                    missing_fields.append("Address")
-                if not size_sqft:
-                    missing_fields.append("Size (sq ft)")
-                if not price:
-                    missing_fields.append("Price")
+                # Submit button with dynamic text
+                button_text = f"Add {property_type.title()}"
+                submitted = st.form_submit_button(
+                    button_text, 
+                    type="primary",
+                    use_container_width=True
+                )
                 
-                if missing_fields:
-                    st.error(f"Please fill in all required fields: {', '.join(missing_fields)}")
-                else:
-                    with st.spinner(f"Adding {property_type}..."):
-                        # Get coordinates
-                        lat, lon = get_coordinates(address.strip(), locationiq_api_key)
-                        
-                        if lat is not None and lon is not None:
-                            # Create property payload
-                            new_property = {
-                                "Address": address.strip(),
-                                "Size (sqft)": size_sqft,
-                                "Price": price,
-                                "Price/SqFt": round(price / size_sqft, 2),
-                                "Latitude": lat,
-                                "Longitude": lon,
-                                "Snapshot Date": str(date.today())
-                            }
+                if submitted:
+                    # Check for mandatory fields
+                    missing_fields = []
+                    if not address or address.strip() == "":
+                        missing_fields.append("Address")
+                    if not size_sqft:
+                        missing_fields.append("Size (sq ft)")
+                    if not price:
+                        missing_fields.append("Price")
+                    
+                    if missing_fields:
+                        st.error(f"Please fill in all required fields: {', '.join(missing_fields)}")
+                    else:
+                        with st.spinner(f"Adding {property_type}..."):
+                            # Get coordinates
+                            lat, lon = get_coordinates(address.strip(), locationiq_api_key)
                             
-                            # Add optional fields
-                            if bedrooms:
-                                new_property["Bedrooms"] = bedrooms
-                            if year_built:
-                                new_property["Year Built"] = year_built
-                            if agent_name and agent_name.strip():
-                                new_property["Agent Name"] = agent_name.strip()
-                            if story:
-                                new_property["Story"] = story
-                            
-                            # Add type-specific fields with user-provided dates
-                            if property_type == "candidate":
-                                new_property["Listing Date"] = str(listing_date)
-                                new_property["URL"] = f"https://www.har.com/mapsearch?quicksearch={address.replace(' ', '+')}&view=map"
-                            else:
-                                new_property["Sold Date"] = str(sold_date)
-                                new_property["URL"] = f"https://www.har.com/mapsearch?quicksearch={address.replace(' ', '+')}&view=map"
-                            
-                            # Add to existing data
-                            if property_type == "candidate":
-                                candidates_copy = candidates.copy()
-                                st.write(f"before update row count: {len(candidates_copy)}")
-                                candidates_copy.append(new_property)
-                                st.write(f"after update row count: {len(candidates_copy)}")
+                            if lat is not None and lon is not None:
+                                # Create property payload
+                                new_property = {
+                                    "Address": address.strip(),
+                                    "Size (sqft)": size_sqft,
+                                    "Price": price,
+                                    "Price/SqFt": round(price / size_sqft, 2),
+                                    "Latitude": lat,
+                                    "Longitude": lon,
+                                    "Snapshot Date": str(date.today())
+                                }
                                 
-                                if upload_to_s3(s3_client, bucket_name, candidate_file, candidates_copy):
-                                    st.cache_data.clear()
-                                    st.success(f"✅ Candidate property added successfully!")
-                                    st.rerun()
-                            else:
-                                comps_copy = comps.copy()
-                                st.write(f"before update comp count: {len(comps_copy)}")
-                                comps_copy.append(new_property)
-                                st.write(f"after update comp count: {len(comps_copy)}")
+                                # Add optional fields
+                                if bedrooms:
+                                    new_property["Bedrooms"] = bedrooms
+                                if year_built:
+                                    new_property["Year Built"] = year_built
+                                if agent_name and agent_name.strip():
+                                    new_property["Agent Name"] = agent_name.strip()
+                                if story:
+                                    new_property["Story"] = story
                                 
-                                if upload_to_s3(s3_client, bucket_name, comp_file, comps_copy):
-                                    st.cache_data.clear()
-                                    st.success(f"✅ Comp property added successfully!")
-                                    st.rerun()
-                            
-                            # Show payload preview
-                            st.subheader("📦 Property Data Added:")
-                            st.json(new_property)
-                        else:
-                            st.error("❌ Failed to get coordinates for the address. Please check the address and try again.")
-    
+                                # Add type-specific fields with user-provided dates
+                                if property_type == "candidate":
+                                    new_property["Listing Date"] = str(listing_date)
+                                    new_property["URL"] = f"https://www.har.com/mapsearch?quicksearch={address.replace(' ', '+')}&view=map"
+                                else:
+                                    new_property["Sold Date"] = str(sold_date)
+                                    new_property["URL"] = f"https://www.har.com/mapsearch?quicksearch={address.replace(' ', '+')}&view=map"
+                                
+                                # Add to existing data
+                                if property_type == "candidate":
+                                    candidates_copy = candidates.copy()
+                                    st.write(f"before update row count: {len(candidates_copy)}")
+                                    candidates_copy.append(new_property)
+                                    st.write(f"after update row count: {len(candidates_copy)}")
+                                    
+                                    if upload_to_s3(s3_client, bucket_name, candidate_file, candidates_copy):
+                                        st.cache_data.clear()
+                                        st.success(f"✅ Candidate property added successfully!")
+                                        st.rerun()
+                                else:
+                                    comps_copy = comps.copy()
+                                    st.write(f"before update comp count: {len(comps_copy)}")
+                                    comps_copy.append(new_property)
+                                    st.write(f"after update comp count: {len(comps_copy)}")
+                                    
+                                    if upload_to_s3(s3_client, bucket_name, comp_file, comps_copy):
+                                        st.cache_data.clear()
+                                        st.success(f"✅ Comp property added successfully!")
+                                        st.rerun()
+                                
+                                # Show payload preview
+                                st.subheader("📦 Property Data Added:")
+                                st.json(new_property)
+                            else:
+                                st.error("❌ Failed to get coordinates for the address. Please check the address and try again.")
+        
         # === TAB 3: Candidates ===
         with tab3:
             st.header(f"🏠 Candidate Properties ({len(candidates)})")
@@ -723,285 +728,317 @@ def main():
                 
                 # Create filter columns
                 filter_col1, filter_col2, filter_col3, filter_col4 = st.columns(4)
-            
-            with filter_col1:
-                st.write("**Distance Filter**")
-                enable_distance_filter = st.checkbox("Enable Distance Filter", value=True, key="enable_distance_filter")
-                max_distance = st.slider("Max Distance (mi)", 0.5, 50.0, 10.0, 0.5, disabled=not enable_distance_filter)
-            
-            with filter_col2:
-                st.write("**Price Filter (Comps)**")
-                enable_price_filter = st.checkbox("Enable Price Filter", value=False)
-                if enable_price_filter:
-                    price_range = st.slider("Comp Price Range ($)", 0, 2000000, (50000, 1000000), 10000, format="$%d")
-                    price_min, price_max = price_range
-                else:
-                    price_min = price_max = None
-            
-            with filter_col3:
-                st.write("**Size Filter (Comps)**")
-                enable_size_filter = st.checkbox("Enable Size Filter", value=False)
-                if enable_size_filter:
-                    size_range = st.slider("Comp Size Range (sqft)", 200, 10000, (800, 4000), 50)
-                    size_min, size_max = size_range
-                else:
-                    size_min = size_max = None
-            
-            with filter_col4:
-                st.write("**Year Filter (Comps)**")
-                enable_year_filter = st.checkbox("Enable Year Filter", value=False)
-                if enable_year_filter:
-                    year_range = st.slider("Comp Year Range", 1900, 2030, (1980, 2020), 1)
-                    year_min, year_max = year_range
-                else:
-                    year_min = year_max = None
-            
-            # Apply filters to candidates (no filters, just show all)
-            filtered_candidates = candidates
-            
-            st.divider()
-            
-            # Display filter results summary
-            col_summary1, col_summary2 = st.columns(2)
-            with col_summary1:
-                st.metric("Total Candidates", len(candidates))
-            with col_summary2:
-                st.metric("Total Comps", len(comps))
-            
-            # Two-column layout
-            col1, col2 = st.columns([1, 1])
-            
-            with col1:
-                st.subheader(f"🏠 Select Candidate Property ({len(filtered_candidates)} total)")
                 
-                # Initialize session state
-                if 'selected_candidate_idx' not in st.session_state:
-                    st.session_state.selected_candidate_idx = None
-                
-                # Search box for candidates
-                search_term = st.text_input("🔍 Search candidates by address", placeholder="Type to search...")
-                
-                # Filter candidates by search term
-                display_candidates = filtered_candidates
-                if search_term:
-                    display_candidates = [c for c in filtered_candidates 
-                                        if search_term.lower() in c['Address'].lower()]
-                
-                # Pagination for large datasets
-                candidates_per_page = 10
-                total_pages = math.ceil(len(display_candidates) / candidates_per_page)
-                
-                if total_pages > 1:
-                    page = st.selectbox(f"Page (showing {len(display_candidates)} candidates)", 
-                                    range(1, total_pages + 1), index=0)
-                    start_idx = (page - 1) * candidates_per_page
-                    end_idx = start_idx + candidates_per_page
-                    page_candidates = display_candidates[start_idx:end_idx]
-                else:
-                    page_candidates = display_candidates
-                
-                # Display candidates with selection
-                if page_candidates:
-                    for i, candidate in enumerate(page_candidates):
-                        # Find the original index in the full candidates list
-                        original_idx = next((idx for idx, c in enumerate(candidates) 
-                                        if c['Address'] == candidate['Address']), None)
-                        is_selected = st.session_state.selected_candidate_idx == original_idx
-                        
-                        with st.container():
-                            # Create two columns: property info and action buttons
-                            prop_col, btn_col = st.columns([3, 1])
-                            
-                            with prop_col:
-                                # Display candidate info
-                                st.markdown(f"""
-                                <div style="border: {'2px solid #646cff' if is_selected else '1px solid #ddd'}; 
-                                        border-radius: 8px; padding: 0.75rem; margin-bottom: 0.5rem;
-                                        background-color: {'#f0f8ff' if is_selected else '#f9f9f9'};">
-                                    <div style="font-weight: bold; font-size: 0.9rem; margin-bottom: 0.25rem;">
-                                        {candidate['Address']}
-                                    </div>
-                                    <div style="font-size: 0.8rem; color: #666;">
-                                        {candidate['Size (sqft)']:,} sqft • ${candidate['Price']:,} • 
-                                        ${candidate.get('Price/SqFt', 0):.0f}/sqft
-                                        {f" • Built: {candidate['Year Built']}" if candidate.get('Year Built') else ""}
-                                        {f" • {candidate['Bedrooms']} beds" if candidate.get('Bedrooms') else ""}
-                                    </div>
-                                </div>
-                                """, unsafe_allow_html=True)
-                            
-                            with btn_col:
-                                # Action buttons in vertical layout (to avoid nesting columns too deep)
-                                if st.button("Select", key=f"select_candidate_{original_idx}", 
-                                            type="primary" if is_selected else "secondary",
-                                            help="Select this candidate",
-                                            use_container_width=True):
-                                    st.session_state.selected_candidate_idx = original_idx
-                                    st.rerun()
-                                
-                                # View button with proper link handling
-                                if candidate.get('URL'):
-                                    st.link_button("View", candidate['URL'], 
-                                                help="View property listing",
-                                                use_container_width=True)
-                                else:
-                                    st.button("View", key=f"view_candidate_{original_idx}",
-                                            disabled=True, help="No URL available",
-                                            use_container_width=True)
-                                
-                                # Send to Podio button
-                                if st.button("Podio", key=f"podio_candidate_{original_idx}",
-                                            help="Send to Podio",
-                                            use_container_width=True):
-                                    success, message = send_to_podio(candidate)
-                                    if success:
-                                        st.success(message)
-                                    else:
-                                        st.error(message)
-                else:
-                    st.info("No candidates match your search.")
-            
-            with col2:
-                st.subheader("🎯 Ideal Comps & Distance Analysis")
-                
-                if st.session_state.selected_candidate_idx is not None:
-                    selected_candidate = candidates[st.session_state.selected_candidate_idx]
-                    
-                    # Display selected candidate info
-                    st.success(f"**Selected:** {selected_candidate['Address']}")
-                    
-                    # Selected candidate metrics
-                    metric_col1, metric_col2, metric_col3 = st.columns(3)
-                    with metric_col1:
-                        st.metric("Size", f"{selected_candidate['Size (sqft)']:,} sqft")
-                    with metric_col2:
-                        st.metric("Price", f"${selected_candidate['Price']:,}")
-                    with metric_col3:
-                        if selected_candidate.get('Year Built'):
-                            st.metric("Built", selected_candidate['Year Built'])
-                    
-                    # Apply all filters to comps including distance
-                    distance_filter = st.session_state.max_distance if st.session_state.enable_distance_filter else None
-                    filtered_comps = filter_comps(
-                        comps, selected_candidate, price_min, price_max, size_min, size_max, 
-                        year_min, year_max, distance_filter
+                with filter_col1:
+                    st.write("**Distance Filter**")
+                    # Use session state for persistent filter state
+                    st.session_state.enable_distance_filter = st.checkbox(
+                        "Enable Distance Filter", 
+                        value=st.session_state.enable_distance_filter
                     )
-                    
-                    # Find ideal comps from filtered comps (with updated criteria)
-                    ideal_comps = find_ideal_comps(selected_candidate, filtered_comps, None)  # Don't apply distance again
-                    
-                    st.subheader(f"🎯 Ideal Comps Found: {len(ideal_comps)}")
-                    
-                    # Show criteria (updated to include price criteria)
-                    candidate_size = selected_candidate.get('Size (sqft)', 0)
-                    candidate_year = selected_candidate.get('Year Built', None)
-                    candidate_price = selected_candidate.get('Price', 0)
-                    
-                    criteria_parts = [
-                        f"Size {candidate_size - 250:,} - {candidate_size + 250:,} sqft",
-                        f"Price >= ${candidate_price + 50000:,}"
-                    ]
-                    if candidate_year:
-                        criteria_parts.append(f"Year {candidate_year - 15} - {candidate_year + 15}")
-                    else:
-                        criteria_parts.append("Any year")
-                    
-                    # Add filter criteria
-                    filter_parts = []
-                    if st.session_state.enable_price_filter:
-                        filter_parts.append(f"Price ${price_min:,} - ${price_max:,}")
-                    if st.session_state.enable_size_filter:
-                        filter_parts.append(f"Size {size_min:,} - {size_max:,} sqft")
-                    if st.session_state.enable_year_filter:
-                        filter_parts.append(f"Year {year_min} - {year_max}")
                     if st.session_state.enable_distance_filter:
-                        filter_parts.append(f"Max Distance {st.session_state.max_distance} mi")
+                        st.session_state.max_distance = st.slider(
+                            "Max Distance (mi)", 
+                            0.5, 50.0, 
+                            value=st.session_state.max_distance, 
+                            step=0.5
+                        )
+                    else:
+                        st.session_state.max_distance = None
+                
+                with filter_col2:
+                    st.write("**Price Filter (Comps)**")
+                    st.session_state.enable_price_filter = st.checkbox(
+                        "Enable Price Filter", 
+                        value=st.session_state.enable_price_filter
+                    )
+                    if st.session_state.enable_price_filter:
+                        st.session_state.price_range = st.slider(
+                            "Comp Price Range ($)", 
+                            0, 2000000, 
+                            value=st.session_state.price_range, 
+                            step=10000, 
+                            format="$%d"
+                        )
+                        price_min, price_max = st.session_state.price_range
+                    else:
+                        price_min = price_max = None
+                
+                with filter_col3:
+                    st.write("**Size Filter (Comps)**")
+                    st.session_state.enable_size_filter = st.checkbox(
+                        "Enable Size Filter", 
+                        value=st.session_state.enable_size_filter
+                    )
+                    if st.session_state.enable_size_filter:
+                        st.session_state.size_range = st.slider(
+                            "Comp Size Range (sqft)", 
+                            200, 10000, 
+                            value=st.session_state.size_range, 
+                            step=50
+                        )
+                        size_min, size_max = st.session_state.size_range
+                    else:
+                        size_min = size_max = None
+                
+                with filter_col4:
+                    st.write("**Year Filter (Comps)**")
+                    st.session_state.enable_year_filter = st.checkbox(
+                        "Enable Year Filter", 
+                        value=st.session_state.enable_year_filter
+                    )
+                    if st.session_state.enable_year_filter:
+                        st.session_state.year_range = st.slider(
+                            "Comp Year Range", 
+                            1900, 2030, 
+                            value=st.session_state.year_range, 
+                            step=1
+                        )
+                        year_min, year_max = st.session_state.year_range
+                    else:
+                        year_min = year_max = None
+                
+                # Apply filters to candidates (no filters, just show all)
+                filtered_candidates = candidates
+                
+                st.divider()
+                
+                # Display filter results summary
+                col_summary1, col_summary2 = st.columns(2)
+                with col_summary1:
+                    st.metric("Total Candidates", len(candidates))
+                with col_summary2:
+                    st.metric("Total Comps", len(comps))
+                
+                # Two-column layout
+                col1, col2 = st.columns([1, 1])
+                
+                with col1:
+                    st.subheader(f"🏠 Select Candidate Property ({len(filtered_candidates)} total)")
                     
-                    criteria_text = "**Ideal Comp Criteria:** " + ", ".join(criteria_parts)
-                    if filter_parts:
-                        criteria_text += f"\n\n**Additional Filters:** " + ", ".join(filter_parts)
+                    # Search box for candidates
+                    search_term = st.text_input("🔍 Search candidates by address", placeholder="Type to search...")
                     
-                    st.info(criteria_text)
+                    # Filter candidates by search term
+                    display_candidates = filtered_candidates
+                    if search_term:
+                        display_candidates = [c for c in filtered_candidates 
+                                            if search_term.lower() in c['Address'].lower()]
                     
-                    if ideal_comps:
-                        # Calculate comp metrics
-                        comp_prices = [c['Price'] for c in ideal_comps]
-                        comp_sizes = [c['Size (sqft)'] for c in ideal_comps]
-                        comp_price_sqft = [c.get('Price/SqFt', 0) for c in ideal_comps]
-                        
-                        # Display comp metrics
-                        comp_col1, comp_col2, comp_col3 = st.columns(3)
-                        with comp_col1:
-                            st.metric("Avg Comp Price", f"${sum(comp_prices)/len(comp_prices):,.0f}")
-                        with comp_col2:
-                            st.metric("Avg Comp Size", f"{sum(comp_sizes)/len(comp_sizes):,.0f} sqft")
-                        with comp_col3:
-                            st.metric("Avg Comp $/sqft", f"${sum(comp_price_sqft)/len(comp_price_sqft):.0f}")
-                        
-                        # Sort by distance if available
-                        if ideal_comps and 'Distance' in ideal_comps[0]:
-                            ideal_comps.sort(key=lambda x: x.get('Distance', float('inf')))
-                        
-                        # Display ideal comps in comprehensive table format
-                        comp_data = []
-                        for comp in ideal_comps:
-                            distance = comp.get('Distance')
-                            distance_display = f"{distance:.2f}" if distance is not None else 'N/A'
+                    # Pagination for large datasets
+                    candidates_per_page = 10
+                    total_pages = math.ceil(len(display_candidates) / candidates_per_page)
+                    
+                    if total_pages > 1:
+                        page = st.selectbox(f"Page (showing {len(display_candidates)} candidates)", 
+                                        range(1, total_pages + 1), index=0)
+                        start_idx = (page - 1) * candidates_per_page
+                        end_idx = start_idx + candidates_per_page
+                        page_candidates = display_candidates[start_idx:end_idx]
+                    else:
+                        page_candidates = display_candidates
+                    
+                    # Display candidates with selection
+                    if page_candidates:
+                        for i, candidate in enumerate(page_candidates):
+                            # Find the original index in the full candidates list
+                            original_idx = next((idx for idx, c in enumerate(candidates) 
+                                            if c['Address'] == candidate['Address']), None)
+                            is_selected = st.session_state.selected_candidate_idx == original_idx
                             
-                            # Calculate differences
-                            size_diff = comp['Size (sqft)'] - selected_candidate['Size (sqft)']
-                            price_diff = comp['Price'] - selected_candidate['Price']
-                            price_sqft_diff = comp.get('Price/SqFt', 0) - selected_candidate.get('Price/SqFt', 0)
-                            year_diff = ""
-                            if comp.get('Year Built') and selected_candidate.get('Year Built'):
-                                year_diff = comp['Year Built'] - selected_candidate['Year Built']
-                            
-                            # Add ALL available fields from comp
-                            row_data = {
-                                'Address': comp['Address'],
-                                'Distance (mi)': distance_display,
-                                'Size (sqft)': f"{comp['Size (sqft)']:,}",
-                                'Size Δ': f"{size_diff:+,}",
-                                'Price': f"${comp['Price']:,}",
-                                'Price Δ': f"${price_diff:+,}",
-                                'Price/SqFt': f"${comp.get('Price/SqFt', 0):.0f}",
-                                '$/SqFt Δ': f"${price_sqft_diff:+.0f}",
-                                'Year Built': comp.get('Year Built', ''),
-                                'Year Δ': f"{year_diff:+d}" if year_diff != "" else "",
-                                'Bedrooms': comp.get('Bedrooms', ''),
-                                'Agent Name': comp.get('Agent Name', ''),
-                                'Sold Date': comp.get('Sold Date', ''),
-                                'Snapshot Date': comp.get('Snapshot Date', ''),
-                                'URL': comp.get('URL', '')
-                            }
-                            comp_data.append(row_data)
+                            with st.container():
+                                # Create two columns: property info and action buttons
+                                prop_col, btn_col = st.columns([3, 1])
+                                
+                                with prop_col:
+                                    # Display candidate info
+                                    st.markdown(f"""
+                                    <div style="border: {'2px solid #646cff' if is_selected else '1px solid #ddd'}; 
+                                            border-radius: 8px; padding: 0.75rem; margin-bottom: 0.5rem;
+                                            background-color: {'#f0f8ff' if is_selected else '#f9f9f9'};">
+                                        <div style="font-weight: bold; font-size: 0.9rem; margin-bottom: 0.25rem;">
+                                            {candidate['Address']}
+                                        </div>
+                                        <div style="font-size: 0.8rem; color: #666;">
+                                            {candidate['Size (sqft)']:,} sqft • ${candidate['Price']:,} • 
+                                            ${candidate.get('Price/SqFt', 0):.0f}/sqft
+                                            {f" • Built: {candidate['Year Built']}" if candidate.get('Year Built') else ""}
+                                            {f" • {candidate['Bedrooms']} beds" if candidate.get('Bedrooms') else ""}
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                                
+                                with btn_col:
+                                    # Action buttons in vertical layout (to avoid nesting columns too deep)
+                                    if st.button("Select", key=f"select_candidate_{original_idx}", 
+                                                type="primary" if is_selected else "secondary",
+                                                help="Select this candidate",
+                                                use_container_width=True):
+                                        st.session_state.selected_candidate_idx = original_idx
+                                        st.rerun()
+                                    
+                                    # View button with proper link handling
+                                    if candidate.get('URL'):
+                                        st.link_button("View", candidate['URL'], 
+                                                    help="View property listing",
+                                                    use_container_width=True)
+                                    else:
+                                        st.button("View", key=f"view_candidate_{original_idx}",
+                                                disabled=True, help="No URL available",
+                                                use_container_width=True)
+                                    
+                                    # Send to Podio button
+                                    if st.button("Podio", key=f"podio_candidate_{original_idx}",
+                                                help="Send to Podio",
+                                                use_container_width=True):
+                                        success, message = send_to_podio(candidate)
+                                        if success:
+                                            st.success(message)
+                                        else:
+                                            st.error(message)
+                    else:
+                        st.info("No candidates match your search.")
+                
+                with col2:
+                    st.subheader("🎯 Ideal Comps & Distance Analysis")
+                    
+                    if st.session_state.selected_candidate_idx is not None:
+                        selected_candidate = candidates[st.session_state.selected_candidate_idx]
                         
-                        comp_df = pd.DataFrame(comp_data)
+                        # Display selected candidate info
+                        st.success(f"**Selected:** {selected_candidate['Address']}")
                         
-                        st.dataframe(
-                            comp_df,
-                            use_container_width=True,
-                            column_config={
-                                "URL": st.column_config.LinkColumn(
-                                    "View",
-                                    help="Click to view property listing",
-                                    validate="^https://.*",
-                                    display_text="🔗"
-                                ),
-                                "Distance (mi)": st.column_config.TextColumn("Distance", width="small"),
-                                "Size Δ": st.column_config.TextColumn("Size Δ", width="small"),
-                                "Price Δ": st.column_config.TextColumn("Price Δ", width="small"),
-                                "$/SqFt Δ": st.column_config.TextColumn("$/SqFt Δ", width="small"),
-                                "Year Δ": st.column_config.TextColumn("Year Δ", width="small")
-                            },
-                            hide_index=True
+                        # Selected candidate metrics
+                        metric_col1, metric_col2, metric_col3 = st.columns(3)
+                        with metric_col1:
+                            st.metric("Size", f"{selected_candidate['Size (sqft)']:,} sqft")
+                        with metric_col2:
+                            st.metric("Price", f"${selected_candidate['Price']:,}")
+                        with metric_col3:
+                            if selected_candidate.get('Year Built'):
+                                st.metric("Built", selected_candidate['Year Built'])
+                        
+                        # Apply all filters to comps including distance
+                        distance_filter = st.session_state.max_distance if st.session_state.enable_distance_filter else None
+                        filtered_comps = filter_comps(
+                            comps, selected_candidate, price_min, price_max, size_min, size_max, 
+                            year_min, year_max, distance_filter
                         )
                         
+                        # Find ideal comps from filtered comps (with updated criteria)
+                        ideal_comps = find_ideal_comps(selected_candidate, filtered_comps, None)  # Don't apply distance again
+                        
+                        st.subheader(f"🎯 Ideal Comps Found: {len(ideal_comps)}")
+                        
+                        # Show criteria (updated to include price criteria)
+                        candidate_size = selected_candidate.get('Size (sqft)', 0)
+                        candidate_year = selected_candidate.get('Year Built', None)
+                        candidate_price = selected_candidate.get('Price', 0)
+                        
+                        criteria_parts = [
+                            f"Size {candidate_size - 250:,} - {candidate_size + 250:,} sqft",
+                            f"Price >= ${candidate_price + 50000:,}"
+                        ]
+                        if candidate_year:
+                            criteria_parts.append(f"Year {candidate_year - 15} - {candidate_year + 15}")
+                        else:
+                            criteria_parts.append("Any year")
+                        
+                        # Add filter criteria
+                        filter_parts = []
+                        if st.session_state.enable_price_filter:
+                            filter_parts.append(f"Price ${price_min:,} - ${price_max:,}")
+                        if st.session_state.enable_size_filter:
+                            filter_parts.append(f"Size {size_min:,} - {size_max:,} sqft")
+                        if st.session_state.enable_year_filter:
+                            filter_parts.append(f"Year {year_min} - {year_max}")
+                        if st.session_state.enable_distance_filter:
+                            filter_parts.append(f"Max Distance {st.session_state.max_distance} mi")
+                        
+                        criteria_text = "**Ideal Comp Criteria:** " + ", ".join(criteria_parts)
+                        if filter_parts:
+                            criteria_text += f"\n\n**Additional Filters:** " + ", ".join(filter_parts)
+                        
+                        st.info(criteria_text)
+                        
+                        if ideal_comps:
+                            # Calculate comp metrics
+                            comp_prices = [c['Price'] for c in ideal_comps]
+                            comp_sizes = [c['Size (sqft)'] for c in ideal_comps]
+                            comp_price_sqft = [c.get('Price/SqFt', 0) for c in ideal_comps]
+                            
+                            # Display comp metrics
+                            comp_col1, comp_col2, comp_col3 = st.columns(3)
+                            with comp_col1:
+                                st.metric("Avg Comp Price", f"${sum(comp_prices)/len(comp_prices):,.0f}")
+                            with comp_col2:
+                                st.metric("Avg Comp Size", f"{sum(comp_sizes)/len(comp_sizes):,.0f} sqft")
+                            with comp_col3:
+                                st.metric("Avg Comp $/sqft", f"${sum(comp_price_sqft)/len(comp_price_sqft):.0f}")
+                            
+                            # Sort by distance if available
+                            if ideal_comps and 'Distance' in ideal_comps[0]:
+                                ideal_comps.sort(key=lambda x: x.get('Distance', float('inf')))
+                            
+                            # Display ideal comps in comprehensive table format
+                            comp_data = []
+                            for comp in ideal_comps:
+                                distance = comp.get('Distance')
+                                distance_display = f"{distance:.2f}" if distance is not None else 'N/A'
+                                
+                                # Calculate differences
+                                size_diff = comp['Size (sqft)'] - selected_candidate['Size (sqft)']
+                                price_diff = comp['Price'] - selected_candidate['Price']
+                                price_sqft_diff = comp.get('Price/SqFt', 0) - selected_candidate.get('Price/SqFt', 0)
+                                year_diff = ""
+                                if comp.get('Year Built') and selected_candidate.get('Year Built'):
+                                    year_diff = comp['Year Built'] - selected_candidate['Year Built']
+                                
+                                # Add ALL available fields from comp
+                                row_data = {
+                                    'Address': comp['Address'],
+                                    'Distance (mi)': distance_display,
+                                    'Size (sqft)': f"{comp['Size (sqft)']:,}",
+                                    'Size Δ': f"{size_diff:+,}",
+                                    'Price': f"${comp['Price']:,}",
+                                    'Price Δ': f"${price_diff:+,}",
+                                    'Price/SqFt': f"${comp.get('Price/SqFt', 0):.0f}",
+                                    '$/SqFt Δ': f"${price_sqft_diff:+.0f}",
+                                    'Year Built': comp.get('Year Built', ''),
+                                    'Year Δ': f"{year_diff:+d}" if year_diff != "" else "",
+                                    'Bedrooms': comp.get('Bedrooms', ''),
+                                    'Agent Name': comp.get('Agent Name', ''),
+                                    'Sold Date': comp.get('Sold Date', ''),
+                                    'Snapshot Date': comp.get('Snapshot Date', ''),
+                                    'URL': comp.get('URL', '')
+                                }
+                                comp_data.append(row_data)
+                            
+                            comp_df = pd.DataFrame(comp_data)
+                            
+                            st.dataframe(
+                                comp_df,
+                                use_container_width=True,
+                                column_config={
+                                    "URL": st.column_config.LinkColumn(
+                                        "View",
+                                        help="Click to view property listing",
+                                        validate="^https://.*",
+                                        display_text="🔗"
+                                    ),
+                                    "Distance (mi)": st.column_config.TextColumn("Distance", width="small"),
+                                    "Size Δ": st.column_config.TextColumn("Size Δ", width="small"),
+                                    "Price Δ": st.column_config.TextColumn("Price Δ", width="small"),
+                                    "$/SqFt Δ": st.column_config.TextColumn("$/SqFt Δ", width="small"),
+                                    "Year Δ": st.column_config.TextColumn("Year Δ", width="small")
+                                },
+                                hide_index=True
+                            )
+                            
+                        else:
+                            st.warning("No ideal comps found for this candidate with the current criteria.")
+                            st.info("Try adjusting the filter criteria to find more comps.")
                     else:
-                        st.warning("No ideal comps found for this candidate with the current criteria.")
-                        st.info("Try adjusting the filter criteria to find more comps.")
-                else:
-                    st.info("👆 Select a candidate property to see ideal comps and distance analysis.")
+                        st.info("👆 Select a candidate property to see ideal comps and distance analysis.")
             else:
                 st.info("Add both candidate and comp properties to perform distance analysis.")
 
