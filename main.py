@@ -1735,6 +1735,133 @@ def main():
             return
             
         st.header(f"🏠 Candidate Properties ({len(candidates)})")
+        
+        # Add zipcode search functionality
+        if candidates:
+            st.subheader("🔍 Search by Zipcode")
+            
+            # Extract zipcodes from all candidates
+            def extract_zipcode(address):
+                """Extract zipcode from address string"""
+                if not address:
+                    return None
+                
+                # Split by space and take the last element
+                parts = address.strip().split()
+                if parts:
+                    last_part = parts[-1]
+                    # Check if it looks like a zipcode (5 digits, optionally with -4 extension)
+                    if last_part.replace('-', '').isdigit() and len(last_part.replace('-', '')) >= 5:
+                        return last_part[:5]  # Return just the 5-digit part
+                return None
+            
+            # Create zipcode mapping
+            zipcode_data = {}
+            for candidate in candidates:
+                zipcode = extract_zipcode(candidate.get('Address', ''))
+                if zipcode:
+                    if zipcode not in zipcode_data:
+                        zipcode_data[zipcode] = []
+                    zipcode_data[zipcode].append(candidate)
+            
+            # Zipcode search interface
+            col1, col2 = st.columns([1, 2])
+            
+            with col1:
+                # Input for zipcode search
+                search_zipcode = st.text_input(
+                    "Enter Zipcode",
+                    placeholder="e.g., 77021",
+                    help="Enter a 5-digit zipcode to see properties in that area",
+                    key="tab3_zipcode_search"
+                )
+                
+                # Show available zipcodes
+                # if zipcode_data:
+                #     available_zipcodes = sorted(zipcode_data.keys())
+                #     st.write("**Available Zipcodes:**")
+                    
+                #     # Create clickable zipcode buttons in a grid
+                #     zipcode_cols = st.columns(3)
+                #     for i, zipcode in enumerate(available_zipcodes):
+                #         col_idx = i % 3
+                #         with zipcode_cols[col_idx]:
+                #             if st.button(
+                #                 f"{zipcode} ({len(zipcode_data[zipcode])})",
+                #                 key=f"tab3_zipcode_btn_{zipcode}",
+                #                 help=f"Click to search {zipcode}",
+                #                 use_container_width=True
+                #             ):
+                #                 st.session_state.tab3_zipcode_search = zipcode
+                #                 st.rerun()
+            
+            with col2:
+                # Display zipcode search results
+                if search_zipcode and search_zipcode in zipcode_data:
+                    properties_in_zipcode = zipcode_data[search_zipcode]
+                    
+                    st.success(f"📍 Found **{len(properties_in_zipcode)}** properties in zipcode **{search_zipcode}**")
+                    
+                    # Calculate zipcode-specific metrics
+                    if properties_in_zipcode:
+                        zipcode_df = pd.DataFrame(properties_in_zipcode)
+                        
+                        # Metrics for this zipcode
+                        metric_col1, metric_col2, metric_col3 = st.columns(3)
+                        with metric_col1:
+                            avg_price = zipcode_df['Price'].mean()
+                            st.metric("Avg Price", f"${avg_price:,.0f}")
+                        with metric_col2:
+                            avg_size = zipcode_df['Size (sqft)'].mean()
+                            st.metric("Avg Size", f"{avg_size:,.0f} sqft")
+                        with metric_col3:
+                            avg_price_sqft = zipcode_df['Price/SqFt'].mean()
+                            st.metric("Avg $/SqFt", f"${avg_price_sqft:.0f}")
+                        
+                        # Show detailed properties
+                        st.subheader(f"Properties in {search_zipcode}")
+                        display_properties_table(properties_in_zipcode, f"candidate in {search_zipcode}")
+                
+                elif search_zipcode and search_zipcode not in zipcode_data:
+                    st.warning(f"❌ No properties found in zipcode **{search_zipcode}**")
+                    
+                    # Suggest similar zipcodes
+                    similar_zipcodes = [z for z in zipcode_data.keys() if z.startswith(search_zipcode[:3])]
+                    if similar_zipcodes:
+                        st.info(f"💡 **Similar zipcodes available:** {', '.join(similar_zipcodes)}")
+                
+                elif not search_zipcode:
+                    # Show overview when no search
+                    st.info("👆 Enter a zipcode or click on one of the available zipcodes to see properties in that area")
+                    
+                    # Show zipcode summary statistics
+                    if zipcode_data:
+                        st.subheader("📊 Zipcode Overview")
+                        
+                        # Create summary data
+                        summary_data = []
+                        for zipcode, properties in zipcode_data.items():
+                            df = pd.DataFrame(properties)
+                            summary_data.append({
+                                'Zipcode': zipcode,
+                                'Property Count': len(properties),
+                                'Avg Price': f"${df['Price'].mean():,.0f}",
+                                'Avg Size (sqft)': f"{df['Size (sqft)'].mean():,.0f}",
+                                'Avg Price/SqFt': f"${df['Price/SqFt'].mean():.0f}",
+                                'Price Range': f"${df['Price'].min():,.0f} - ${df['Price'].max():,.0f}"
+                            })
+                        
+                        summary_df = pd.DataFrame(summary_data)
+                        st.dataframe(
+                            summary_df,
+                            use_container_width=True,
+                            hide_index=True
+                        )
+        
+        st.divider()
+        
+        # Show all candidates table
+        st.subheader("📋 All Candidate Properties")
         display_properties_table(candidates, "candidate")
     
     # === TAB 4: Comps ===
@@ -1762,7 +1889,7 @@ def main():
             with filter_col1:
                 st.write("**Distance Filter**")
                 enable_distance_filter = st.checkbox("Enable Distance Filter", value=True, key="tab5_enable_distance_filter")
-                max_distance = st.slider("Max Distance (mi)", 0.5, 50.0, 10.0, 0.5, disabled=not enable_distance_filter, key="tab5_max_distance_slider")
+                max_distance = st.slider("Max Distance (mi)", 0.5, 50.0, 5.0, 0.5, disabled=not enable_distance_filter, key="tab5_max_distance_slider")
             
             with filter_col2:
                 st.write("**Price Filter (Comps)**")
