@@ -391,7 +391,7 @@ def main():
     # Configuration - Updated for folder structure
     bucket_name =  'shinka-realestate-gold' #'lonestar-realestate-test'
     candidate_file = 'candidate/candidate.json'
-    comp_file = 'comps/comp.json'
+    comp_file = 'comps/comps.json'
     
     # Initialize S3 client
     s3_client = init_s3_client()
