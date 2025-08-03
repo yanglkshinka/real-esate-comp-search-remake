@@ -442,7 +442,7 @@ def main():
         # Check if already logged in and show logout option
         if st.session_state.logged_in:
             st.success(f"✅ Currently logged in as: **{st.session_state.username}**")
-            st.info("You can now access all features of the application.")
+            st.info("You can now access all features of the application. Use the other tabs to manage properties.")
             
             col1, col2 = st.columns([1, 3])
             with col1:
@@ -451,7 +451,13 @@ def main():
                     st.session_state.username = None
                     st.rerun()
             with col2:
-                st.write("")  # Empty space
+                st.markdown("### Quick Navigation")
+                st.markdown("""
+                - **📝 Add Property**: Add new candidate or comp properties
+                - **🏠 Candidates**: View all candidate properties
+                - **📊 Comps**: View all comparable properties  
+                - **📏 Distance Analysis**: Analyze distances and find ideal comps
+                """)
         else:
             # Show login form only if not logged in
             with st.form("login_form"):
