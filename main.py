@@ -1468,8 +1468,15 @@ def send_to_podio(data):
 
 # === Main App ===
 def main():
-    # Initialize session state FIRST
+    # Initialize session state FIRST - this must be at the very top
     init_session_state()
+    
+    # DEBUG: Add a debug flag to check session state
+    if 'debug_mode' not in st.session_state:
+        st.session_state.debug_mode = False
+    
+    # CRITICAL: Check login state early and preserve it
+    user_is_logged_in = st.session_state.get('logged_in', False)
     
     st.title("🏠 Lonestar Real Estate - Property Manager")
     st.markdown("Add candidate and comp properties with automatic coordinate enrichment and distance analysis.")
@@ -1482,11 +1489,23 @@ def main():
     # Initialize S3 client
     s3_client = init_s3_client()
     
-    # Sidebar Configuration
+    # Get API key from secrets
+    locationiq_api_key = st.secrets.get("LOCATIONIQ_API_KEY", "")
+    
+    # Load existing data with refresh button - move to sidebar later
+    @st.cache_data(ttl=60)
+    def load_data():
+        candidates = download_from_s3(s3_client, bucket_name, candidate_file)
+        comps = download_from_s3(s3_client, bucket_name, comp_file)
+        return candidates, comps
+    
+    candidates, comps = load_data()
+    
+    # Sidebar Configuration - MOVED AFTER data loading to avoid interference
     st.sidebar.header("⚙️ Configuration")
     
     # Show login status in sidebar
-    if st.session_state.logged_in:
+    if user_is_logged_in:
         st.sidebar.success(f"✅ Logged in as: {st.session_state.username}")
         if st.sidebar.button("🚪 Logout", key="sidebar_logout"):
             # Proper logout - clear only auth related state
@@ -1496,20 +1515,10 @@ def main():
     else:
         st.sidebar.warning("🔒 Not logged in")
     
-    # Get API key from secrets
-    locationiq_api_key = st.secrets.get("LOCATIONIQ_API_KEY", "")
-    
-    # Load existing data with refresh button
+    # Data refresh button
     if st.sidebar.button("🔄 Refresh Data from S3", key="refresh_data"):
         st.cache_data.clear()
-    
-    @st.cache_data(ttl=60)
-    def load_data():
-        candidates = download_from_s3(s3_client, bucket_name, candidate_file)
-        comps = download_from_s3(s3_client, bucket_name, comp_file)
-        return candidates, comps
-    
-    candidates, comps = load_data()
+        st.rerun()
 
     # Main content tabs
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["🔐 Login", "📝 Add Property", "🏠 Candidates", "📊 Comps", "📏 Distance Analysis"])
@@ -1542,8 +1551,8 @@ def main():
                 
                 with col1:
                     st.markdown("### Login Credentials")
-                    username = st.text_input("Username", placeholder="Enter your username")
-                    password = st.text_input("Password", type="password", placeholder="Enter your password")
+                    username = st.text_input("Username", placeholder="Enter your username", key="login_username")
+                    password = st.text_input("Password", type="password", placeholder="Enter your password", key="login_password")
                     
                     login_submitted = st.form_submit_button("Login", type="primary", use_container_width=True)
                     
@@ -1572,9 +1581,35 @@ def main():
                         "- Username: admin\n"
                         "- Password: password123"
                     )
+                    
+                    if login_submitted:
+                        if username and password:
+                            if username == "admin" and password == "password123":
+                                st.success("✅ Login successful!")
+                                st.session_state.logged_in = True
+                                st.session_state.username = username
+                                st.rerun()
+                            else:
+                                st.error("❌ Invalid username or password")
+                        else:
+                            st.error("Please enter both username and password")
+                
+                with col2:
+                    st.markdown("### System Information")
+                    st.info(
+                        "**Welcome to Lonestar Real Estate Property Manager**\n\n"
+                        "This system allows you to:\n"
+                        "- Add and manage candidate properties\n"
+                        "- Track comparable properties (comps)\n"
+                        "- Perform distance analysis\n"
+                        "- Send data to Podio CRM\n\n"
+                        "**Test Credentials:**\n"
+                        "- Username: admin\n"
+                        "- Password: password123"
+                    )
 
     # Check if user is logged in before showing other tabs content
-    if not st.session_state.logged_in:
+    if not user_is_logged_in:
         # Show message in other tabs if not logged in
         with tab2:
             st.warning("🔒 Please log in first to access this feature.")
@@ -1782,34 +1817,31 @@ def main():
                 
                 with filter_col1:
                     st.write("**Distance Filter**")
-                    enable_distance = st.checkbox(
+                    st.session_state.enable_distance_filter = st.checkbox(
                         "Enable Distance Filter", 
                         value=st.session_state.enable_distance_filter,
                         key="distance_filter_checkbox"
                     )
-                    st.session_state.enable_distance_filter = enable_distance
                     
-                    if enable_distance:
-                        max_distance_val = st.slider(
+                    if st.session_state.enable_distance_filter:
+                        st.session_state.max_distance = st.slider(
                             "Max Distance (mi)", 
                             0.5, 50.0, 
                             value=st.session_state.max_distance, 
                             step=0.5,
                             key="distance_slider"
                         )
-                        st.session_state.max_distance = max_distance_val
                 
                 with filter_col2:
                     st.write("**Price Filter (Comps)**")
-                    enable_price = st.checkbox(
+                    st.session_state.enable_price_filter = st.checkbox(
                         "Enable Price Filter", 
                         value=st.session_state.enable_price_filter,
                         key="price_filter_checkbox"
                     )
-                    st.session_state.enable_price_filter = enable_price
                     
-                    if enable_price:
-                        price_range_val = st.slider(
+                    if st.session_state.enable_price_filter:
+                        st.session_state.price_range = st.slider(
                             "Comp Price Range ($)", 
                             0, 2000000, 
                             value=st.session_state.price_range, 
@@ -1817,52 +1849,47 @@ def main():
                             format="$%d",
                             key="price_range_slider"
                         )
-                        st.session_state.price_range = price_range_val
-                        price_min, price_max = price_range_val
+                        price_min, price_max = st.session_state.price_range
                     else:
                         price_min = price_max = None
                 
                 with filter_col3:
                     st.write("**Size Filter (Comps)**")
-                    enable_size = st.checkbox(
+                    st.session_state.enable_size_filter = st.checkbox(
                         "Enable Size Filter", 
                         value=st.session_state.enable_size_filter,
                         key="size_filter_checkbox"
                     )
-                    st.session_state.enable_size_filter = enable_size
                     
-                    if enable_size:
-                        size_range_val = st.slider(
+                    if st.session_state.enable_size_filter:
+                        st.session_state.size_range = st.slider(
                             "Comp Size Range (sqft)", 
                             200, 10000, 
                             value=st.session_state.size_range, 
                             step=50,
                             key="size_range_slider"
                         )
-                        st.session_state.size_range = size_range_val
-                        size_min, size_max = size_range_val
+                        size_min, size_max = st.session_state.size_range
                     else:
                         size_min = size_max = None
                 
                 with filter_col4:
                     st.write("**Year Filter (Comps)**")
-                    enable_year = st.checkbox(
+                    st.session_state.enable_year_filter = st.checkbox(
                         "Enable Year Filter", 
                         value=st.session_state.enable_year_filter,
                         key="year_filter_checkbox"
                     )
-                    st.session_state.enable_year_filter = enable_year
                     
-                    if enable_year:
-                        year_range_val = st.slider(
+                    if st.session_state.enable_year_filter:
+                        st.session_state.year_range = st.slider(
                             "Comp Year Range", 
                             1900, 2030, 
                             value=st.session_state.year_range, 
                             step=1,
                             key="year_range_slider"
                         )
-                        st.session_state.year_range = year_range_val
-                        year_min, year_max = year_range_val
+                        year_min, year_max = st.session_state.year_range
                     else:
                         year_min = year_max = None
                 
@@ -1888,16 +1915,13 @@ def main():
                         placeholder="Type to search...",
                         key="candidate_search_input"
                     )
-                    # Update session state only if changed to avoid unnecessary reruns
-                    if search_term != st.session_state.search_term:
-                        st.session_state.search_term = search_term
-                        st.session_state.page_number = 1  # Reset to first page on search
+                    st.session_state.search_term = search_term
                     
                     # Filter candidates by search term
                     display_candidates = candidates
-                    if st.session_state.search_term:
+                    if search_term:
                         display_candidates = [c for c in candidates 
-                                            if st.session_state.search_term.lower() in c['Address'].lower()]
+                                            if search_term.lower() in c['Address'].lower()]
                     
                     # Pagination for large datasets
                     candidates_per_page = 10
@@ -1943,6 +1967,7 @@ def main():
                                             ${candidate.get('Price/SqFt', 0):.0f}/sqft
                                             {f" • Built: {candidate['Year Built']}" if candidate.get('Year Built') else ""}
                                             {f" • {candidate['Bedrooms']} beds" if candidate.get('Bedrooms') else ""}
+                                        </div>
                                     </div>
                                     """, unsafe_allow_html=True)
                                 
