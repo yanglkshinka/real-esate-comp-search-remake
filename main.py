@@ -1074,12 +1074,6 @@ st.set_page_config(
 # === Session State Initialization ===
 def init_session_state():
     """Initialize all session state variables at the start"""
-    # Authentication state
-    if 'logged_in' not in st.session_state:
-        st.session_state.logged_in = False
-    if 'username' not in st.session_state:
-        st.session_state.username = None
-    
     # Candidate selection state
     if 'selected_candidate_idx' not in st.session_state:
         st.session_state.selected_candidate_idx = None
@@ -1471,13 +1465,6 @@ def main():
     # Initialize session state FIRST - this must be at the very top
     init_session_state()
     
-    # DEBUG: Add a debug flag to check session state
-    if 'debug_mode' not in st.session_state:
-        st.session_state.debug_mode = False
-    
-    # CRITICAL: Check login state early and preserve it
-    user_is_logged_in = st.session_state.get('logged_in', False)
-    
     st.title("🏠 Lonestar Real Estate - Property Manager")
     st.markdown("Add candidate and comp properties with automatic coordinate enrichment and distance analysis.")
     
@@ -1504,24 +1491,13 @@ def main():
     # Sidebar Configuration - MOVED AFTER data loading to avoid interference
     st.sidebar.header("⚙️ Configuration")
     
-    # Show login status in sidebar
-    if user_is_logged_in:
-        st.sidebar.success(f"✅ Logged in as: {st.session_state.username}")
-        if st.sidebar.button("🚪 Logout", key="sidebar_logout"):
-            # Proper logout - clear only auth related state
-            st.session_state.logged_in = False
-            st.session_state.username = None
-            st.rerun()
-    else:
-        st.sidebar.warning("🔒 Not logged in")
-    
     # Data refresh button
     if st.sidebar.button("🔄 Refresh Data from S3", key="refresh_data"):
         st.cache_data.clear()
         st.rerun()
 
     # Main content tabs
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["🔐 Login", "📝 Add Property", "🏠 Candidates", "📊 Comps", "📏 Distance Analysis"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📝 Add Property", "🏠 Candidates", "📊 Comps", "📏 Distance Analysis"])
     
     # === TAB 1: Login ===
     with tab1:
@@ -1794,18 +1770,18 @@ def main():
                             else:
                                 st.error("❌ Failed to get coordinates for the address. Please check the address and try again.")
         
-        # === TAB 3: Candidates ===
-        with tab3:
+        # === TAB 2: Candidates ===
+        with tab2:
             st.header(f"🏠 Candidate Properties ({len(candidates)})")
             display_properties_table(candidates, "candidate")
         
-        # === TAB 4: Comps ===
-        with tab4:
+        # === TAB 3: Comps ===
+        with tab3:
             st.header(f"📊 Comp Properties ({len(comps)})")
             display_properties_table(comps, "comp")
         
-        # === TAB 5: Distance Analysis ===
-        with tab5:
+        # === TAB 4: Distance Analysis ===
+        with tab4:
             st.header("📏 Distance Analysis & Ideal Comps")
             
             if candidates and comps:
@@ -2146,15 +2122,14 @@ def main():
             else:
                 st.info("Add both candidate and comp properties to perform distance analysis.")
 
-    # Sidebar summary (only show when logged in)
-    if st.session_state.logged_in:
-        st.sidebar.markdown("---")
-        st.sidebar.info(
-            f"📊 **Data Summary**\n\n"
-            f"🏠 Candidates: {len(candidates)}\n\n"
-            f"📊 Comps: {len(comps)}\n\n"
-            f"💾 S3 Bucket: {bucket_name}"
-        )
+    # Sidebar summary
+    st.sidebar.markdown("---")
+    st.sidebar.info(
+        f"📊 **Data Summary**\n\n"
+        f"🏠 Candidates: {len(candidates)}\n\n"
+        f"📊 Comps: {len(comps)}\n\n"
+        f"💾 S3 Bucket: {bucket_name}"
+    )
 
 if __name__ == "__main__":
     main()
