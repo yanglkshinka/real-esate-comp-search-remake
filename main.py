@@ -397,9 +397,9 @@ def main():
     st.markdown("Add candidate and comp properties with automatic coordinate enrichment and distance analysis.")
     
     # Configuration - Updated for folder structure
-    bucket_name =   'lonestar-realestate-test' # 'shinka-realestate-gold'
+    bucket_name = 'shinka-realestate-gold' # 'lonestar-realestate-test' # 
     candidate_file = 'candidate/candidate.json'
-    comp_file = 'comps/comp.json'
+    comp_file = 'comps/comps.json'
     
     # Initialize S3 client
     s3_client = init_s3_client()
@@ -513,15 +513,15 @@ def main():
         # User is logged in, show all functionality
         # === TAB 2: Add Property ===
         with tab2:
-        st.header("Add New Property")
-        
-        # Property type selection outside the form
-        property_type = st.selectbox(
-            "Property Type",
-            options=["candidate", "comp"],
-            format_func=lambda x: "Candidate" if x == "candidate" else "Comp",
-            key="property_type_selector"
-        )
+            st.header("Add New Property")
+            
+            # Property type selection outside the form
+            property_type = st.selectbox(
+                "Property Type",
+                options=["candidate", "comp"],
+                format_func=lambda x: "Candidate" if x == "candidate" else "Comp",
+                key="property_type_selector"
+            )
         
         with st.form("property_form", clear_on_submit=True):
             col1, col2 = st.columns(2)
