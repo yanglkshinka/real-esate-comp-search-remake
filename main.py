@@ -1060,7 +1060,7 @@ import pandas as pd
 import json
 import requests
 import math
-from datetime import date
+from datetime import date, datetime
 import plotly.express as px
 
 # === Page Configuration ===
@@ -1070,6 +1070,27 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# === Authentication Functions ===
+def check_authentication():
+    """Centralized authentication check with better persistence"""
+    # Initialize session state if not exists
+    if 'logged_in' not in st.session_state:
+        st.session_state.logged_in = False
+    if 'username' not in st.session_state:
+        st.session_state.username = None
+    if 'login_time' not in st.session_state:
+        st.session_state.login_time = None
+    
+    return st.session_state.logged_in
+
+def require_login():
+    """Show login required message and return False if not logged in"""
+    if not check_authentication():
+        st.warning("🔒 Please log in first to access this feature.")
+        st.info("Go to the **Login** tab to enter your credentials.")
+        return False
+    return True
 
 # === AWS Configuration ===
 @st.cache_resource
@@ -1180,10 +1201,10 @@ def find_ideal_comps(candidate, comps, max_distance=None):
         comp_lat = comp.get('Latitude')
         comp_lon = comp.get('Longitude')
         
-        # Size criteria: ±1000 sqft
+        # Size criteria: ±250 sqft
         size_match = abs(comp_size - candidate_size) <= 250
         
-        # Year built criteria: ±25 years (if both have year built)
+        # Year built criteria: ±15 years (if both have year built)
         year_match = True  # Default to True if either doesn't have year
         if candidate_year and comp_year:
             year_match = abs(comp_year - candidate_year) <= 15
@@ -1208,7 +1229,6 @@ def find_ideal_comps(candidate, comps, max_distance=None):
             ideal_comps.append(comp_with_distance)
     
     return ideal_comps
-
 
 # === Property Table Display ===
 def display_properties_table(properties, property_type):
@@ -1287,8 +1307,6 @@ def display_properties_table(properties, property_type):
         hide_index=True
     )
 
-
-
 # === Filter Functions ===
 def filter_comps(comps, candidate, price_min=None, price_max=None, size_min=None, size_max=None, 
                  year_min=None, year_max=None, max_distance=None):
@@ -1337,15 +1355,14 @@ def filter_comps(comps, candidate, price_min=None, price_max=None, size_min=None
     
     return filtered
 
+# === Podio Integration ===
 APP_ID = st.secrets.get("PODIO_APP_ID")
 APP_TOKEN = st.secrets.get("PODIO_APP_TOKEN")
 CLIENT_ID = st.secrets.get("PODIO_CLIENT_ID")
 CLIENT_SECRET = st.secrets.get("PODIO_CLIENT_SECRET")
 
-# Step 1: Authenticate and get access token
 def get_access_token():
     try:
-        import requests
         response = requests.post(
             "https://podio.com/oauth/token",
             data={
@@ -1361,23 +1378,18 @@ def get_access_token():
         st.error(f"Error getting access token: {str(e)}")
         return None
 
-# Helper function to convert date to Podio datetime format
 def convertToPodioDatetime(date_string):
     """Convert date string to Podio datetime format"""
     try:
-        from datetime import datetime
         if date_string:
-            # Adjust this based on your date format
             dt = datetime.strptime(str(date_string), "%Y-%m-%d")
             return dt.strftime("%Y-%m-%d %H:%M:%S")
         return None
     except:
         return None
 
-# Step 2: Post item to Podio app
 def send_to_podio(data):
     try:
-        import requests
         access_token = get_access_token()
         if not access_token:
             return False, "Failed to get access token"
@@ -1391,18 +1403,15 @@ def send_to_podio(data):
         # Build payload with only non-empty fields
         fields = {}
         
-        # Address - required field, must have value
         if data.get('Address'):
             fields["address"] = data.get('Address', '')
         
-        # Price - only add if has valid value
         if data.get('Price') and data.get('Price') > 0:
             fields["listing-price"] = {
                 "value": data.get('Price', 0),
                 "currency": "USD"
             }
         
-        # Listing date - only add if has valid date
         listing_date = data.get("Listing Date") or data.get("Sold Date") or data.get("Snapshot Date")
         if listing_date and str(listing_date).strip():
             formatted_date = convertToPodioDatetime(listing_date)
@@ -1412,19 +1421,13 @@ def send_to_podio(data):
                     "end": formatted_date
                 }
         
-        # Agent name - only add if has value
         if data.get("Agent Name") and str(data.get("Agent Name")).strip():
             fields["agent-name"] = data.get("Agent Name", "")
         
-        # Square feet - only add if has valid value
         if data.get("Size (sqft)") and data.get("Size (sqft)") > 0:
             fields["square-feet"] = str(data.get("Size (sqft)", ""))
         
-        # Format final payload
         payload = {"fields": fields}
-        
-        # Debug: print payload to see what's being sent
-        # st.write("Debug - Payload being sent to Podio:", payload)
         
         res = requests.post(url, json=payload, headers=headers)
         
@@ -1433,21 +1436,21 @@ def send_to_podio(data):
         else:
             return False, f"Failed to send to Podio: {res.status_code} - {res.text}"
             
-    except ImportError:
-        return False, "Please install 'requests' library: pip install requests"
     except Exception as e:
         return False, f"Error sending to Podio: {str(e)}"
-
 
 # === Main App ===
 def main():
     st.title("🏠 Lonestar Real Estate - Property Manager")
     st.markdown("Add candidate and comp properties with automatic coordinate enrichment and distance analysis.")
     
-    # Configuration - Updated for folder structure
-    bucket_name =  'shinka-realestate-gold' #'lonestar-realestate-test' # 
+    # Configuration
+    bucket_name = 'shinka-realestate-gold'
     candidate_file = 'candidate/candidate.json'
     comp_file = 'comps/comps.json'
+    
+    # Initialize authentication state
+    is_logged_in = check_authentication()
     
     # Initialize S3 client
     s3_client = init_s3_client()
@@ -1455,20 +1458,34 @@ def main():
     # Sidebar Configuration
     st.sidebar.header("⚙️ Configuration")
     
-    # Get API key from secrets (don't show input to user)
+    # Show login status in sidebar
+    if is_logged_in:
+        st.sidebar.success(f"✅ Logged in as: {st.session_state.username}")
+        if st.sidebar.button("🚪 Logout"):
+            st.session_state.logged_in = False
+            st.session_state.username = None
+            st.session_state.login_time = None
+            st.rerun()
+    else:
+        st.sidebar.warning("🔒 Not logged in")
+    
+    # Get API key from secrets
     locationiq_api_key = st.secrets.get("LOCATIONIQ_API_KEY", "")
     
-    # Load existing data
-    if st.sidebar.button("🔄 Refresh Data from S3"):
-        st.cache_data.clear()
-    
-    @st.cache_data(ttl=60)
-    def load_data():
-        candidates = download_from_s3(s3_client, bucket_name, candidate_file)
-        comps = download_from_s3(s3_client, bucket_name, comp_file)
-        return candidates, comps
-    
-    candidates, comps = load_data()
+    # Load existing data only if logged in
+    if is_logged_in:
+        if st.sidebar.button("🔄 Refresh Data from S3"):
+            st.cache_data.clear()
+        
+        @st.cache_data(ttl=60)
+        def load_data():
+            candidates = download_from_s3(s3_client, bucket_name, candidate_file)
+            comps = download_from_s3(s3_client, bucket_name, comp_file)
+            return candidates, comps
+        
+        candidates, comps = load_data()
+    else:
+        candidates, comps = [], []
     
     # Main content tabs
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["🔐 Login", "📝 Add Property", "🏠 Candidates", "📊 Comps", "📏 Distance Analysis"])
@@ -1477,18 +1494,21 @@ def main():
     with tab1:
         st.header("🔐 User Login")
         
-        # Check if already logged in and show logout option
-        if st.session_state.get('logged_in', False):
+        if is_logged_in:
             col1, col2 = st.columns([1, 1])
             with col1:
-                st.success(f"✅ Currently logged in as: **{st.session_state.get('username', 'Unknown')}**")
+                st.success(f"✅ Currently logged in as: **{st.session_state.username}**")
+                login_time = st.session_state.get('login_time')
+                if login_time:
+                    st.info(f"Logged in at: {login_time.strftime('%Y-%m-%d %H:%M:%S')}")
             with col2:
-                if st.button("Logout", type="secondary"):
+                if st.button("🚪 Logout", type="secondary", key="main_logout"):
                     st.session_state.logged_in = False
                     st.session_state.username = None
+                    st.session_state.login_time = None
+                    st.success("Successfully logged out!")
                     st.rerun()
         else:
-            # Show login form only if not logged in
             with st.form("login_form"):
                 col1, col2 = st.columns([1, 2])
                 
@@ -1497,15 +1517,16 @@ def main():
                     username = st.text_input("Username", placeholder="Enter your username")
                     password = st.text_input("Password", type="password", placeholder="Enter your password")
                     
-                    login_submitted = st.form_submit_button("Login", type="primary", use_container_width=True)
+                    login_submitted = st.form_submit_button("🔑 Login", type="primary", use_container_width=True)
                     
                     if login_submitted:
                         if username and password:
-                            # Add your authentication logic here
-                            if username == st.secrets.get("username") and password == st.secrets.get("password"):  # Example credentials
-                                st.success("✅ Login successful!")
+                            if username == st.secrets.get("username") and password == st.secrets.get("password"):
                                 st.session_state.logged_in = True
                                 st.session_state.username = username
+                                st.session_state.login_time = datetime.now()
+                                st.success("✅ Login successful!")
+                                st.balloons()
                                 st.rerun()
                             else:
                                 st.error("❌ Invalid username or password")
@@ -1524,29 +1545,11 @@ def main():
                         "Please log in to access the system."
                     )
     
-    # Check if user is logged in before showing other tabs
-    if not st.session_state.get('logged_in', False):
-        # Show message in other tabs if not logged in
-        with tab2:
-            st.warning("🔒 Please log in first to access this feature.")
-            st.info("Go to the Login tab to enter your credentials.")
-        
-        with tab3:
-            st.warning("🔒 Please log in first to access this feature.")
-            st.info("Go to the Login tab to enter your credentials.")
-        
-        with tab4:
-            st.warning("🔒 Please log in first to access this feature.")
-            st.info("Go to the Login tab to enter your credentials.")
-        
-        with tab5:
-            st.warning("🔒 Please log in first to access this feature.")
-            st.info("Go to the Login tab to enter your credentials.")
-        
-        return  # Exit early if not logged in
-    
     # === TAB 2: Add Property ===
     with tab2:
+        if not require_login():
+            return
+            
         st.header("Add New Property")
         
         # Property type selection outside the form
@@ -1622,8 +1625,6 @@ def main():
                     placeholder="e.g., John Smith"
                 )
                 
-
-                
                 # Auto-calculate price per sq ft
                 if size_sqft and price:
                     price_per_sqft = round(price / size_sqft, 2)
@@ -1687,9 +1688,7 @@ def main():
                             # Add to existing data
                             if property_type == "candidate":
                                 candidates_copy = candidates.copy()
-                                st.write(f"before update row count: {len(candidates_copy)}")
                                 candidates_copy.append(new_property)
-                                st.write(f"after update row count: {len(candidates_copy)}")
                                 
                                 if upload_to_s3(s3_client, bucket_name, candidate_file, candidates_copy):
                                     st.cache_data.clear()
@@ -1697,9 +1696,7 @@ def main():
                                     st.rerun()
                             else:
                                 comps_copy = comps.copy()
-                                st.write(f"before update comp count: {len(comps_copy)}")
                                 comps_copy.append(new_property)
-                                st.write(f"after update comp count: {len(comps_copy)}")
                                 
                                 if upload_to_s3(s3_client, bucket_name, comp_file, comps_copy):
                                     st.cache_data.clear()
@@ -1714,16 +1711,25 @@ def main():
     
     # === TAB 3: Candidates ===
     with tab3:
+        if not require_login():
+            return
+            
         st.header(f"🏠 Candidate Properties ({len(candidates)})")
         display_properties_table(candidates, "candidate")
     
     # === TAB 4: Comps ===
     with tab4:
+        if not require_login():
+            return
+            
         st.header(f"📊 Comp Properties ({len(comps)})")
         display_properties_table(comps, "comp")
     
     # === TAB 5: Distance Analysis ===
     with tab5:
+        if not require_login():
+            return
+            
         st.header("📏 Distance Analysis & Ideal Comps")
         
         if candidates and comps:
@@ -1839,7 +1845,7 @@ def main():
                                 """, unsafe_allow_html=True)
                             
                             with btn_col:
-                                # Action buttons in vertical layout (to avoid nesting columns too deep)
+                                # Action buttons in vertical layout
                                 if st.button("Select", key=f"select_candidate_{original_idx}", 
                                             type="primary" if is_selected else "secondary",
                                             help="Select this candidate",
@@ -1895,12 +1901,12 @@ def main():
                         year_min, year_max, distance_filter
                     )
                     
-                    # Find ideal comps from filtered comps (with updated criteria)
-                    ideal_comps = find_ideal_comps(selected_candidate, filtered_comps, None)  # Don't apply distance again
+                    # Find ideal comps from filtered comps
+                    ideal_comps = find_ideal_comps(selected_candidate, filtered_comps, None)
                     
                     st.subheader(f"🎯 Ideal Comps Found: {len(ideal_comps)}")
                     
-                    # Show criteria (updated to include price criteria)
+                    # Show criteria
                     candidate_size = selected_candidate.get('Size (sqft)', 0)
                     candidate_year = selected_candidate.get('Year Built', None)
                     candidate_price = selected_candidate.get('Price', 0)
@@ -2013,13 +2019,15 @@ def main():
         else:
             st.info("Add both candidate and comp properties to perform distance analysis.")
 
-    st.sidebar.markdown("---")
-    st.sidebar.info(
-        f"📊 **Data Summary**\n\n"
-        f"🏠 Candidates: {len(candidates)}\n\n"
-        f"📊 Comps: {len(comps)}\n\n"
-        f"💾 S3 Bucket: {bucket_name}"
-    )
+    # Sidebar info (only show if logged in)
+    if is_logged_in:
+        st.sidebar.markdown("---")
+        st.sidebar.info(
+            f"📊 **Data Summary**\n\n"
+            f"🏠 Candidates: {len(candidates)}\n\n"
+            f"📊 Comps: {len(comps)}\n\n"
+            f"💾 S3 Bucket: {bucket_name}"
+        )
 
 if __name__ == "__main__":
     main()
