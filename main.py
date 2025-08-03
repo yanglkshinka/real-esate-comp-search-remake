@@ -397,7 +397,7 @@ def main():
     st.markdown("Add candidate and comp properties with automatic coordinate enrichment and distance analysis.")
     
     # Configuration - Updated for folder structure
-    bucket_name =  # 'lonestar-realestate-test' # 'shinka-realestate-gold'
+    bucket_name =   'lonestar-realestate-test' # 'shinka-realestate-gold'
     candidate_file = 'candidate/candidate.json'
     comp_file = 'comps/comp.json'
     
