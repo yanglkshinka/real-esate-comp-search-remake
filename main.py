@@ -1693,17 +1693,16 @@ def main():
                 st.write("**Distance Filter**")
                 enable_distance_filter = st.checkbox(
                     "Enable Distance Filter", 
-                    value=st.session_state.enable_distance_filter,
-                    key="distance_filter_checkbox"
+                    key="enable_distance_filter"
                 )
                 
                 if enable_distance_filter:
                     max_distance = st.slider(
                         "Max Distance (mi)", 
                         0.5, 50.0, 
-                        value=st.session_state.max_distance, 
+                        value=10.0,
                         step=0.5,
-                        key="distance_slider"
+                        key="max_distance_slider"
                     )
                 else:
                     max_distance = None
@@ -1712,15 +1711,14 @@ def main():
                 st.write("**Price Filter (Comps)**")
                 enable_price_filter = st.checkbox(
                     "Enable Price Filter", 
-                    value=st.session_state.enable_price_filter,
-                    key="price_filter_checkbox"
+                    key="enable_price_filter"
                 )
                 
                 if enable_price_filter:
                     price_range = st.slider(
                         "Comp Price Range ($)", 
                         0, 2000000, 
-                        value=st.session_state.price_range, 
+                        value=(50000, 1000000),
                         step=10000, 
                         format="$%d",
                         key="price_range_slider"
@@ -1733,15 +1731,14 @@ def main():
                 st.write("**Size Filter (Comps)**")
                 enable_size_filter = st.checkbox(
                     "Enable Size Filter", 
-                    value=st.session_state.enable_size_filter,
-                    key="size_filter_checkbox"
+                    key="enable_size_filter"
                 )
                 
                 if enable_size_filter:
                     size_range = st.slider(
                         "Comp Size Range (sqft)", 
                         200, 10000, 
-                        value=st.session_state.size_range, 
+                        value=(800, 4000),
                         step=50,
                         key="size_range_slider"
                     )
@@ -1753,15 +1750,14 @@ def main():
                 st.write("**Year Filter (Comps)**")
                 enable_year_filter = st.checkbox(
                     "Enable Year Filter", 
-                    value=st.session_state.enable_year_filter,
-                    key="year_filter_checkbox"
+                    key="enable_year_filter"
                 )
                 
                 if enable_year_filter:
                     year_range = st.slider(
                         "Comp Year Range", 
                         1900, 2030, 
-                        value=st.session_state.year_range, 
+                        value=(1980, 2020),
                         step=1,
                         key="year_range_slider"
                     )
