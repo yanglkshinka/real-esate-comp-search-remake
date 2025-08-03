@@ -385,13 +385,31 @@ def send_to_podio(data):
 
 # === Main App ===
 def main():
-    # Initialize session state early and make it persistent
+    # Initialize session state very early and make it persistent  
     if 'logged_in' not in st.session_state:
         st.session_state.logged_in = False
     if 'username' not in st.session_state:
         st.session_state.username = None
     if 'selected_candidate_idx' not in st.session_state:
         st.session_state.selected_candidate_idx = None
+    
+    # Persistent filters - use underscore prefix for widget keys
+    if 'enable_distance_filter' not in st.session_state:
+        st.session_state.enable_distance_filter = True
+    if 'enable_price_filter' not in st.session_state:
+        st.session_state.enable_price_filter = False
+    if 'enable_size_filter' not in st.session_state:
+        st.session_state.enable_size_filter = False  
+    if 'enable_year_filter' not in st.session_state:
+        st.session_state.enable_year_filter = False
+    if 'max_distance' not in st.session_state:
+        st.session_state.max_distance = 10.0
+    if 'price_range' not in st.session_state:
+        st.session_state.price_range = (50000, 1000000)
+    if 'size_range' not in st.session_state:
+        st.session_state.size_range = (800, 4000)
+    if 'year_range' not in st.session_state:
+        st.session_state.year_range = (1980, 2020)
     
     st.title("🏠 Lonestar Real Estate - Property Manager")
     st.markdown("Add candidate and comp properties with automatic coordinate enrichment and distance analysis.")
@@ -411,8 +429,9 @@ def main():
     if st.session_state.logged_in:
         st.sidebar.success(f"✅ Logged in as: {st.session_state.username}")
         if st.sidebar.button("🚪 Logout"):
-            st.session_state.logged_in = False
-            st.session_state.username = None
+            # Clear all session state on logout
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
             st.rerun()
     else:
         st.sidebar.warning("🔒 Not logged in")
@@ -861,7 +880,7 @@ def main():
                             st.metric("Built", selected_candidate['Year Built'])
                     
                     # Apply all filters to comps including distance
-                    distance_filter = max_distance if enable_distance_filter else None
+                    distance_filter = st.session_state.max_distance if st.session_state.enable_distance_filter else None
                     filtered_comps = filter_comps(
                         comps, selected_candidate, price_min, price_max, size_min, size_max, 
                         year_min, year_max, distance_filter
@@ -888,14 +907,14 @@ def main():
                     
                     # Add filter criteria
                     filter_parts = []
-                    if enable_price_filter:
+                    if st.session_state.enable_price_filter:
                         filter_parts.append(f"Price ${price_min:,} - ${price_max:,}")
-                    if enable_size_filter:
+                    if st.session_state.enable_size_filter:
                         filter_parts.append(f"Size {size_min:,} - {size_max:,} sqft")
-                    if enable_year_filter:
+                    if st.session_state.enable_year_filter:
                         filter_parts.append(f"Year {year_min} - {year_max}")
-                    if enable_distance_filter:
-                        filter_parts.append(f"Max Distance {max_distance} mi")
+                    if st.session_state.enable_distance_filter:
+                        filter_parts.append(f"Max Distance {st.session_state.max_distance} mi")
                     
                     criteria_text = "**Ideal Comp Criteria:** " + ", ".join(criteria_parts)
                     if filter_parts:
