@@ -1060,6 +1060,7 @@ import pandas as pd
 import json
 import requests
 import math
+import os
 from datetime import date, datetime
 import plotly.express as px
 
@@ -1070,6 +1071,16 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# === Secrets/Environment Variables Handler ===
+def get_secret(key, default=None):
+    """Get secret from Streamlit secrets or environment variables"""
+    try:
+        # Try Streamlit secrets first (for local development)
+        return st.secrets.get(key, default)
+    except:
+        # Fall back to environment variables (for cloud deployment)
+        return os.environ.get(key, default)
 
 # === Authentication Functions ===
 def check_authentication():
@@ -1098,8 +1109,8 @@ def init_s3_client():
     return boto3.client(
         's3',
         region_name='us-east-1',
-        aws_access_key_id=st.secrets.get("AWS_ACCESS_KEY_ID", "your_access_key"),
-        aws_secret_access_key=st.secrets.get("AWS_SECRET_ACCESS_KEY", "your_secret_key")
+        aws_access_key_id=get_secret("AWS_ACCESS_KEY_ID", "your_access_key"),
+        aws_secret_access_key=get_secret("AWS_SECRET_ACCESS_KEY", "your_secret_key")
     )
 
 # === S3 Operations ===
@@ -1356,10 +1367,10 @@ def filter_comps(comps, candidate, price_min=None, price_max=None, size_min=None
     return filtered
 
 # === Podio Integration ===
-APP_ID = st.secrets.get("PODIO_APP_ID")
-APP_TOKEN = st.secrets.get("PODIO_APP_TOKEN")
-CLIENT_ID = st.secrets.get("PODIO_CLIENT_ID")
-CLIENT_SECRET = st.secrets.get("PODIO_CLIENT_SECRET")
+APP_ID = get_secret("PODIO_APP_ID")
+APP_TOKEN = get_secret("PODIO_APP_TOKEN")
+CLIENT_ID = get_secret("PODIO_CLIENT_ID")
+CLIENT_SECRET = get_secret("PODIO_CLIENT_SECRET")
 
 def get_access_token():
     try:
@@ -1461,7 +1472,7 @@ def main():
     # Show login status in sidebar
     if is_logged_in:
         st.sidebar.success(f"✅ Logged in as: {st.session_state.username}")
-        if st.sidebar.button("🚪 Logout"):
+        if st.sidebar.button("🚪 Logout", key="sidebar_logout_button"):
             st.session_state.logged_in = False
             st.session_state.username = None
             st.session_state.login_time = None
@@ -1470,14 +1481,14 @@ def main():
         st.sidebar.warning("🔒 Not logged in")
     
     # Get API key from secrets
-    locationiq_api_key = st.secrets.get("LOCATIONIQ_API_KEY", "")
+    locationiq_api_key = get_secret("LOCATIONIQ_API_KEY", "")
     
     # Load existing data only if logged in
     if is_logged_in:
-        if st.sidebar.button("🔄 Refresh Data from S3"):
+        if st.sidebar.button("🔄 Refresh Data from S3", key="sidebar_refresh_button"):
             st.cache_data.clear()
         
-        @st.cache_data(ttl=60)
+        @st.cache_data(ttl=300, show_spinner=False)
         def load_data():
             candidates = download_from_s3(s3_client, bucket_name, candidate_file)
             comps = download_from_s3(s3_client, bucket_name, comp_file)
@@ -1502,26 +1513,26 @@ def main():
                 if login_time:
                     st.info(f"Logged in at: {login_time.strftime('%Y-%m-%d %H:%M:%S')}")
             with col2:
-                if st.button("🚪 Logout", type="secondary", key="main_logout"):
+                if st.button("🚪 Logout", type="secondary", key="tab1_main_logout"):
                     st.session_state.logged_in = False
                     st.session_state.username = None
                     st.session_state.login_time = None
                     st.success("Successfully logged out!")
                     st.rerun()
         else:
-            with st.form("login_form"):
+            with st.form("tab1_login_form"):
                 col1, col2 = st.columns([1, 2])
                 
                 with col1:
                     st.markdown("### Login Credentials")
-                    username = st.text_input("Username", placeholder="Enter your username")
-                    password = st.text_input("Password", type="password", placeholder="Enter your password")
+                    username = st.text_input("Username", placeholder="Enter your username", key="tab1_username_input")
+                    password = st.text_input("Password", type="password", placeholder="Enter your password", key="tab1_password_input")
                     
                     login_submitted = st.form_submit_button("🔑 Login", type="primary", use_container_width=True)
                     
                     if login_submitted:
                         if username and password:
-                            if username == st.secrets.get("username") and password == st.secrets.get("password"):
+                            if username == get_secret("username") and password == get_secret("password"):
                                 st.session_state.logged_in = True
                                 st.session_state.username = username
                                 st.session_state.login_time = datetime.now()
@@ -1557,24 +1568,26 @@ def main():
             "Property Type",
             options=["candidate", "comp"],
             format_func=lambda x: "Candidate" if x == "candidate" else "Comp",
-            key="property_type_selector"
+            key="tab2_property_type_selector"
         )
         
-        with st.form("property_form", clear_on_submit=True):
+        with st.form("tab2_property_form", clear_on_submit=True):
             col1, col2 = st.columns(2)
             
             with col1:
                 address = st.text_input(
                     "Address *",
                     placeholder="e.g., 123 Main St, Houston, TX 77001",
-                    help="Enter the full property address (Required)"
+                    help="Enter the full property address (Required)",
+                    key="tab2_address_input"
                 )
                 
                 size_sqft = st.number_input(
                     "Size (sq ft) *",
                     min_value=1,
                     value=None,
-                    placeholder="e.g., 2500"
+                    placeholder="e.g., 2500",
+                    key="tab2_size_input"
                 )
                 
                 price = st.number_input(
@@ -1582,7 +1595,8 @@ def main():
                     min_value=0,
                     value=None,
                     step=1000,
-                    placeholder="e.g., 350000"
+                    placeholder="e.g., 350000",
+                    key="tab2_price_input"
                 )
                 
                 # Conditional date input based on property type
@@ -1590,13 +1604,15 @@ def main():
                     listing_date = st.date_input(
                         "Listing Date *",
                         value=date.today(),
-                        help="Date when the property was listed"
+                        help="Date when the property was listed",
+                        key="tab2_candidate_listing_date"
                     )
                 else:
                     sold_date = st.date_input(
                         "Sold Date *",
                         value=date.today(),
-                        help="Date when the property was sold"
+                        help="Date when the property was sold",
+                        key="tab2_comp_sold_date"
                     )
             
             with col2:
@@ -1604,25 +1620,29 @@ def main():
                     "Bedrooms (optional)",
                     min_value=0,
                     max_value=20,
-                    value=None
+                    value=None,
+                    key="tab2_bedrooms_input"
                 )
                 
                 year_built = st.number_input(
                     "Year Built (optional)",
                     min_value=1800,
                     max_value=2030,
-                    value=None
+                    value=None,
+                    key="tab2_year_built_input"
                 )
                 story = st.number_input(
                     "Story (optional)",
                     min_value=1,
                     max_value=10,
                     value=None,
-                    help="Number of stories/floors in the property"
+                    help="Number of stories/floors in the property",
+                    key="tab2_story_input"
                 )                
                 agent_name = st.text_input(
                     "Agent Name (optional)",
-                    placeholder="e.g., John Smith"
+                    placeholder="e.g., John Smith",
+                    key="tab2_agent_name_input"
                 )
                 
                 # Auto-calculate price per sq ft
@@ -1741,32 +1761,32 @@ def main():
             
             with filter_col1:
                 st.write("**Distance Filter**")
-                enable_distance_filter = st.checkbox("Enable Distance Filter", value=True, key="enable_distance_filter")
-                max_distance = st.slider("Max Distance (mi)", 0.5, 50.0, 10.0, 0.5, disabled=not enable_distance_filter)
+                enable_distance_filter = st.checkbox("Enable Distance Filter", value=True, key="tab5_enable_distance_filter")
+                max_distance = st.slider("Max Distance (mi)", 0.5, 50.0, 10.0, 0.5, disabled=not enable_distance_filter, key="tab5_max_distance_slider")
             
             with filter_col2:
                 st.write("**Price Filter (Comps)**")
-                enable_price_filter = st.checkbox("Enable Price Filter", value=False)
+                enable_price_filter = st.checkbox("Enable Price Filter", value=False, key="tab5_enable_price_filter")
                 if enable_price_filter:
-                    price_range = st.slider("Comp Price Range ($)", 0, 2000000, (50000, 1000000), 10000, format="$%d")
+                    price_range = st.slider("Comp Price Range ($)", 0, 2000000, (50000, 1000000), 10000, format="$%d", key="tab5_price_range_slider")
                     price_min, price_max = price_range
                 else:
                     price_min = price_max = None
             
             with filter_col3:
                 st.write("**Size Filter (Comps)**")
-                enable_size_filter = st.checkbox("Enable Size Filter", value=False)
+                enable_size_filter = st.checkbox("Enable Size Filter", value=False, key="tab5_enable_size_filter")
                 if enable_size_filter:
-                    size_range = st.slider("Comp Size Range (sqft)", 200, 10000, (800, 4000), 50)
+                    size_range = st.slider("Comp Size Range (sqft)", 200, 10000, (800, 4000), 50, key="tab5_size_range_slider")
                     size_min, size_max = size_range
                 else:
                     size_min = size_max = None
             
             with filter_col4:
                 st.write("**Year Filter (Comps)**")
-                enable_year_filter = st.checkbox("Enable Year Filter", value=False)
+                enable_year_filter = st.checkbox("Enable Year Filter", value=False, key="tab5_enable_year_filter")
                 if enable_year_filter:
-                    year_range = st.slider("Comp Year Range", 1900, 2030, (1980, 2020), 1)
+                    year_range = st.slider("Comp Year Range", 1900, 2030, (1980, 2020), 1, key="tab5_year_range_slider")
                     year_min, year_max = year_range
                 else:
                     year_min = year_max = None
@@ -1794,7 +1814,7 @@ def main():
                     st.session_state.selected_candidate_idx = None
                 
                 # Search box for candidates
-                search_term = st.text_input("🔍 Search candidates by address", placeholder="Type to search...")
+                search_term = st.text_input("🔍 Search candidates by address", placeholder="Type to search...", key="tab5_candidate_search")
                 
                 # Filter candidates by search term
                 display_candidates = filtered_candidates
@@ -1808,7 +1828,7 @@ def main():
                 
                 if total_pages > 1:
                     page = st.selectbox(f"Page (showing {len(display_candidates)} candidates)", 
-                                    range(1, total_pages + 1), index=0)
+                                    range(1, total_pages + 1), index=0, key="tab5_pagination_selectbox")
                     start_idx = (page - 1) * candidates_per_page
                     end_idx = start_idx + candidates_per_page
                     page_candidates = display_candidates[start_idx:end_idx]
@@ -1822,6 +1842,9 @@ def main():
                         original_idx = next((idx for idx, c in enumerate(candidates) 
                                         if c['Address'] == candidate['Address']), None)
                         is_selected = st.session_state.selected_candidate_idx == original_idx
+                        
+                        # Create unique identifier for this candidate
+                        candidate_id = f"cand_{original_idx}_{hash(candidate['Address']) % 10000}"
                         
                         with st.container():
                             # Create two columns: property info and action buttons
@@ -1845,8 +1868,8 @@ def main():
                                 """, unsafe_allow_html=True)
                             
                             with btn_col:
-                                # Action buttons in vertical layout
-                                if st.button("Select", key=f"select_candidate_{original_idx}", 
+                                # Action buttons with unique keys
+                                if st.button("Select", key=f"tab5_select_{candidate_id}", 
                                             type="primary" if is_selected else "secondary",
                                             help="Select this candidate",
                                             use_container_width=True):
@@ -1859,12 +1882,12 @@ def main():
                                                 help="View property listing",
                                                 use_container_width=True)
                                 else:
-                                    st.button("View", key=f"view_candidate_{original_idx}",
+                                    st.button("View", key=f"tab5_view_{candidate_id}",
                                             disabled=True, help="No URL available",
                                             use_container_width=True)
                                 
                                 # Send to Podio button
-                                if st.button("Podio", key=f"podio_candidate_{original_idx}",
+                                if st.button("Podio", key=f"tab5_podio_{candidate_id}",
                                             help="Send to Podio",
                                             use_container_width=True):
                                     success, message = send_to_podio(candidate)
