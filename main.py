@@ -1498,7 +1498,7 @@ def main():
     # Data refresh button
     if st.sidebar.button("🔄 Refresh Data from S3", key="refresh_data"):
         st.cache_data.clear()
-        st.rerun()
+        # Remove st.rerun() - let Streamlit handle it naturally
 
     # Main content tabs
     tab1, tab2, tab3, tab4 = st.tabs(["📝 Add Property", "🏠 Candidates", "📊 Comps", "📏 Distance Analysis"])
@@ -1652,7 +1652,7 @@ def main():
                                 if upload_to_s3(s3_client, bucket_name, candidate_file, candidates_copy):
                                     st.cache_data.clear()
                                     st.success(f"✅ Candidate property added successfully!")
-                                    st.rerun()
+                                    # Remove st.rerun() - let Streamlit handle it naturally
                             else:
                                 comps_copy = comps.copy()
                                 comps_copy.append(new_property)
@@ -1660,7 +1660,7 @@ def main():
                                 if upload_to_s3(s3_client, bucket_name, comp_file, comps_copy):
                                     st.cache_data.clear()
                                     st.success(f"✅ Comp property added successfully!")
-                                    st.rerun()
+                                    # Remove st.rerun() - let Streamlit handle it naturally
                             
                             # Show payload preview
                             st.subheader("📦 Property Data Added:")
@@ -1822,19 +1822,32 @@ def main():
                             prop_col, btn_col = st.columns([3, 1])
                             
                             with prop_col:
-                                # Display candidate info
+                                # Display candidate info cleanly
+                                border_color = "#646cff" if is_selected else "#ddd"
+                                bg_color = "#f0f8ff" if is_selected else "#f9f9f9"
+                                
+                                # Build info text
+                                info_parts = [
+                                    f"{candidate['Size (sqft)']:,} sqft",
+                                    f"${candidate['Price']:,}",
+                                    f"${candidate.get('Price/SqFt', 0):.0f}/sqft"
+                                ]
+                                
+                                if candidate.get('Year Built'):
+                                    info_parts.append(f"Built: {candidate['Year Built']}")
+                                if candidate.get('Bedrooms'):
+                                    info_parts.append(f"{candidate['Bedrooms']} beds")
+                                
+                                info_text = " • ".join(info_parts)
+                                
                                 st.markdown(f"""
-                                <div style="border: {'2px solid #646cff' if is_selected else '1px solid #ddd'}; 
-                                        border-radius: 8px; padding: 0.75rem; margin-bottom: 0.5rem;
-                                        background-color: {'#f0f8ff' if is_selected else '#f9f9f9'};">
+                                <div style="border: 2px solid {border_color}; border-radius: 8px; padding: 0.75rem; margin-bottom: 0.5rem; background-color: {bg_color};">
                                     <div style="font-weight: bold; font-size: 0.9rem; margin-bottom: 0.25rem;">
                                         {candidate['Address']}
                                     </div>
                                     <div style="font-size: 0.8rem; color: #666;">
-                                        {candidate['Size (sqft)']:,} sqft • ${candidate['Price']:,} • 
-                                        ${candidate.get('Price/SqFt', 0):.0f}/sqft
-                                        {f" • Built: {candidate['Year Built']}" if candidate.get('Year Built') else ""}
-                                        {f" • {candidate['Bedrooms']} beds" if candidate.get('Bedrooms') else ""}
+                                        {info_text}
+                                    </div>
                                 </div>
                                 """, unsafe_allow_html=True)
                             
@@ -1845,7 +1858,7 @@ def main():
                                             help="Select this candidate",
                                             use_container_width=True):
                                     st.session_state.selected_candidate_idx = original_idx
-                                    st.rerun()
+                                    # Remove st.rerun() - let Streamlit handle it naturally
                                 
                                 # View button with proper link handling
                                 if candidate.get('URL'):
