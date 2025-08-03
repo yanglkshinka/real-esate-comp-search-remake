@@ -1469,9 +1469,9 @@ def main():
     st.markdown("Add candidate and comp properties with automatic coordinate enrichment and distance analysis.")
     
     # Configuration
-    bucket_name = 'shinka-realestate-gold'
+    bucket_name =  'lonestar-realestate-test' # 'shinka-realestate-gold'
     candidate_file = 'candidate/candidate.json'
-    comp_file = 'comps/comps.json'
+    comp_file = 'comps/comp.json'
     
     # Initialize S3 client
     s3_client = init_s3_client()
