@@ -511,6 +511,9 @@ def main():
                         "- Track comparable properties (comps)\n"
                         "- Perform distance analysis\n"
                         "- Send data to Podio CRM\n\n"
+                        "**Test Credentials:**\n"
+                        "- Username: admin\n"
+                        "- Password: password123"
                     )
     
     # Check if user is logged in before showing other tabs content
@@ -700,18 +703,18 @@ def main():
                         else:
                             st.error("❌ Failed to get coordinates for the address. Please check the address and try again.")
     
-    # === TAB 3: Candidates ===
-    with tab3:
-        st.header(f"🏠 Candidate Properties ({len(candidates)})")
-        display_properties_table(candidates, "candidate")
-    
-    # === TAB 4: Comps ===
-    with tab4:
-        st.header(f"📊 Comp Properties ({len(comps)})")
-        display_properties_table(comps, "comp")
-    
-    # === TAB 5: Distance Analysis ===
-    with tab5:
+        # === TAB 3: Candidates ===
+        with tab3:
+            st.header(f"🏠 Candidate Properties ({len(candidates)})")
+            display_properties_table(candidates, "candidate")
+        
+        # === TAB 4: Comps ===
+        with tab4:
+            st.header(f"📊 Comp Properties ({len(comps)})")
+            display_properties_table(comps, "comp")
+        
+        # === TAB 5: Distance Analysis ===
+        with tab5:
         st.header("📏 Distance Analysis & Ideal Comps")
         
         if candidates and comps:
@@ -998,16 +1001,18 @@ def main():
                         st.info("Try adjusting the filter criteria to find more comps.")
                 else:
                     st.info("👆 Select a candidate property to see ideal comps and distance analysis.")
-        else:
-            st.info("Add both candidate and comp properties to perform distance analysis.")
+            else:
+                st.info("Add both candidate and comp properties to perform distance analysis.")
 
-    st.sidebar.markdown("---")
-    st.sidebar.info(
-        f"📊 **Data Summary**\n\n"
-        f"🏠 Candidates: {len(candidates)}\n\n"
-        f"📊 Comps: {len(comps)}\n\n"
-        f"💾 S3 Bucket: {bucket_name}"
-    )
+    # Sidebar summary (only show when logged in)
+    if st.session_state.logged_in:
+        st.sidebar.markdown("---")
+        st.sidebar.info(
+            f"📊 **Data Summary**\n\n"
+            f"🏠 Candidates: {len(candidates)}\n\n"
+            f"📊 Comps: {len(comps)}\n\n"
+            f"💾 S3 Bucket: {bucket_name}"
+        )
 
 if __name__ == "__main__":
     main()
