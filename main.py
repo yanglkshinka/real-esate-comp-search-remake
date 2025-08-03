@@ -826,6 +826,7 @@ def main():
                                         ${candidate.get('Price/SqFt', 0):.0f}/sqft
                                         {f" • Built: {candidate['Year Built']}" if candidate.get('Year Built') else ""}
                                         {f" • {candidate['Bedrooms']} beds" if candidate.get('Bedrooms') else ""}
+                                    </div>
                                 </div>
                                 """, unsafe_allow_html=True)
                             
