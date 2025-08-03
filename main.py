@@ -715,14 +715,14 @@ def main():
         
         # === TAB 5: Distance Analysis ===
         with tab5:
-        st.header("📏 Distance Analysis & Ideal Comps")
-        
-        if candidates and comps:
-            # Advanced Filter Controls
-            st.subheader("🎛️ Advanced Filter Controls")
+            st.header("📏 Distance Analysis & Ideal Comps")
             
-            # Create filter columns
-            filter_col1, filter_col2, filter_col3, filter_col4 = st.columns(4)
+            if candidates and comps:
+                # Advanced Filter Controls
+                st.subheader("🎛️ Advanced Filter Controls")
+                
+                # Create filter columns
+                filter_col1, filter_col2, filter_col3, filter_col4 = st.columns(4)
             
             with filter_col1:
                 st.write("**Distance Filter**")
