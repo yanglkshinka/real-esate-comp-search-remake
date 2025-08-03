@@ -385,19 +385,37 @@ def send_to_podio(data):
 
 # === Main App ===
 def main():
+    # Initialize session state early and make it persistent
+    if 'logged_in' not in st.session_state:
+        st.session_state.logged_in = False
+    if 'username' not in st.session_state:
+        st.session_state.username = None
+    if 'selected_candidate_idx' not in st.session_state:
+        st.session_state.selected_candidate_idx = None
+    
     st.title("🏠 Lonestar Real Estate - Property Manager")
     st.markdown("Add candidate and comp properties with automatic coordinate enrichment and distance analysis.")
     
     # Configuration - Updated for folder structure
-    bucket_name =  'shinka-realestate-gold' #'lonestar-realestate-test'
+    bucket_name =  # 'lonestar-realestate-test' # 'shinka-realestate-gold'
     candidate_file = 'candidate/candidate.json'
-    comp_file = 'comps/comps.json'
+    comp_file = 'comps/comp.json'
     
     # Initialize S3 client
     s3_client = init_s3_client()
     
     # Sidebar Configuration
     st.sidebar.header("⚙️ Configuration")
+    
+    # Show login status in sidebar
+    if st.session_state.logged_in:
+        st.sidebar.success(f"✅ Logged in as: {st.session_state.username}")
+        if st.sidebar.button("🚪 Logout"):
+            st.session_state.logged_in = False
+            st.session_state.username = None
+            st.rerun()
+    else:
+        st.sidebar.warning("🔒 Not logged in")
     
     # Get API key from secrets (don't show input to user)
     locationiq_api_key = st.secrets.get("LOCATIONIQ_API_KEY", "")
@@ -414,7 +432,7 @@ def main():
     
     candidates, comps = load_data()
     
-    # Main content tabs
+    # Main content tabs - always show tabs but control content
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["🔐 Login", "📝 Add Property", "🏠 Candidates", "📊 Comps", "📏 Distance Analysis"])
     
     # === TAB 1: Login ===
@@ -422,15 +440,18 @@ def main():
         st.header("🔐 User Login")
         
         # Check if already logged in and show logout option
-        if st.session_state.get('logged_in', False):
-            col1, col2 = st.columns([1, 1])
+        if st.session_state.logged_in:
+            st.success(f"✅ Currently logged in as: **{st.session_state.username}**")
+            st.info("You can now access all features of the application.")
+            
+            col1, col2 = st.columns([1, 3])
             with col1:
-                st.success(f"✅ Currently logged in as: **{st.session_state.get('username', 'Unknown')}**")
-            with col2:
-                if st.button("Logout", type="secondary"):
+                if st.button("🚪 Logout", type="secondary"):
                     st.session_state.logged_in = False
                     st.session_state.username = None
                     st.rerun()
+            with col2:
+                st.write("")  # Empty space
         else:
             # Show login form only if not logged in
             with st.form("login_form"):
@@ -446,7 +467,7 @@ def main():
                     if login_submitted:
                         if username and password:
                             # Add your authentication logic here
-                            if username == st.secrets.get("username") and password == st.secrets.get("password"):  # Example credentials
+                            if username == "admin" and password == "password123":  # Example credentials
                                 st.success("✅ Login successful!")
                                 st.session_state.logged_in = True
                                 st.session_state.username = username
@@ -465,32 +486,33 @@ def main():
                         "- Track comparable properties (comps)\n"
                         "- Perform distance analysis\n"
                         "- Send data to Podio CRM\n\n"
-                        "Please log in to access the system."
+                        "**Test Credentials:**\n"
+                        "- Username: admin\n"
+                        "- Password: password123"
                     )
     
-    # Check if user is logged in before showing other tabs
-    if not st.session_state.get('logged_in', False):
+    # Check if user is logged in before showing other tabs content
+    if not st.session_state.logged_in:
         # Show message in other tabs if not logged in
         with tab2:
             st.warning("🔒 Please log in first to access this feature.")
-            st.info("Go to the Login tab to enter your credentials.")
+            st.info("Go to the Login tab to enter your credentials (admin/password123).")
         
         with tab3:
             st.warning("🔒 Please log in first to access this feature.")
-            st.info("Go to the Login tab to enter your credentials.")
+            st.info("Go to the Login tab to enter your credentials (admin/password123).")
         
         with tab4:
             st.warning("🔒 Please log in first to access this feature.")
-            st.info("Go to the Login tab to enter your credentials.")
+            st.info("Go to the Login tab to enter your credentials (admin/password123).")
         
         with tab5:
             st.warning("🔒 Please log in first to access this feature.")
-            st.info("Go to the Login tab to enter your credentials.")
-        
-        return  # Exit early if not logged in
-    
-    # === TAB 2: Add Property ===
-    with tab2:
+            st.info("Go to the Login tab to enter your credentials (admin/password123).")
+    else:
+        # User is logged in, show all functionality
+        # === TAB 2: Add Property ===
+        with tab2:
         st.header("Add New Property")
         
         # Property type selection outside the form
@@ -779,6 +801,7 @@ def main():
                                         ${candidate.get('Price/SqFt', 0):.0f}/sqft
                                         {f" • Built: {candidate['Year Built']}" if candidate.get('Year Built') else ""}
                                         {f" • {candidate['Bedrooms']} beds" if candidate.get('Bedrooms') else ""}
+                                    </div>
                                 </div>
                                 """, unsafe_allow_html=True)
                             
