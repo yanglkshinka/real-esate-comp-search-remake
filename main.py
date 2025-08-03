@@ -1071,6 +1071,49 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# === Session State Initialization ===
+def init_session_state():
+    """Initialize all session state variables at the start"""
+    # Authentication state
+    if 'logged_in' not in st.session_state:
+        st.session_state.logged_in = False
+    if 'username' not in st.session_state:
+        st.session_state.username = None
+    
+    # Candidate selection state
+    if 'selected_candidate_idx' not in st.session_state:
+        st.session_state.selected_candidate_idx = None
+    
+    # Filter states - with unique keys to avoid conflicts
+    if 'enable_distance_filter' not in st.session_state:
+        st.session_state.enable_distance_filter = True
+    if 'enable_price_filter' not in st.session_state:
+        st.session_state.enable_price_filter = False
+    if 'enable_size_filter' not in st.session_state:
+        st.session_state.enable_size_filter = False  
+    if 'enable_year_filter' not in st.session_state:
+        st.session_state.enable_year_filter = False
+    
+    # Filter values
+    if 'max_distance' not in st.session_state:
+        st.session_state.max_distance = 10.0
+    if 'price_range' not in st.session_state:
+        st.session_state.price_range = (50000, 1000000)
+    if 'size_range' not in st.session_state:
+        st.session_state.size_range = (800, 4000)
+    if 'year_range' not in st.session_state:
+        st.session_state.year_range = (1980, 2020)
+    
+    # Search and pagination states
+    if 'search_term' not in st.session_state:
+        st.session_state.search_term = ""
+    if 'page_number' not in st.session_state:
+        st.session_state.page_number = 1
+    
+    # Property form state
+    if 'property_type' not in st.session_state:
+        st.session_state.property_type = "candidate"
+
 # === AWS Configuration ===
 @st.cache_resource
 def init_s3_client():
@@ -1180,10 +1223,10 @@ def find_ideal_comps(candidate, comps, max_distance=None):
         comp_lat = comp.get('Latitude')
         comp_lon = comp.get('Longitude')
         
-        # Size criteria: ±1000 sqft
+        # Size criteria: ±250 sqft
         size_match = abs(comp_size - candidate_size) <= 250
         
-        # Year built criteria: ±25 years (if both have year built)
+        # Year built criteria: ±15 years (if both have year built)
         year_match = True  # Default to True if either doesn't have year
         if candidate_year and comp_year:
             year_match = abs(comp_year - candidate_year) <= 15
@@ -1208,7 +1251,6 @@ def find_ideal_comps(candidate, comps, max_distance=None):
             ideal_comps.append(comp_with_distance)
     
     return ideal_comps
-
 
 # === Property Table Display ===
 def display_properties_table(properties, property_type):
@@ -1287,8 +1329,6 @@ def display_properties_table(properties, property_type):
         hide_index=True
     )
 
-
-
 # === Filter Functions ===
 def filter_comps(comps, candidate, price_min=None, price_max=None, size_min=None, size_max=None, 
                  year_min=None, year_max=None, max_distance=None):
@@ -1337,12 +1377,12 @@ def filter_comps(comps, candidate, price_min=None, price_max=None, size_min=None
     
     return filtered
 
+# === Podio Integration ===
 APP_ID = st.secrets.get("PODIO_APP_ID")
 APP_TOKEN = st.secrets.get("PODIO_APP_TOKEN")
 CLIENT_ID = st.secrets.get("PODIO_CLIENT_ID")
 CLIENT_SECRET = st.secrets.get("PODIO_CLIENT_SECRET")
 
-# Step 1: Authenticate and get access token
 def get_access_token():
     try:
         import requests
@@ -1361,20 +1401,17 @@ def get_access_token():
         st.error(f"Error getting access token: {str(e)}")
         return None
 
-# Helper function to convert date to Podio datetime format
 def convertToPodioDatetime(date_string):
     """Convert date string to Podio datetime format"""
     try:
         from datetime import datetime
         if date_string:
-            # Adjust this based on your date format
             dt = datetime.strptime(str(date_string), "%Y-%m-%d")
             return dt.strftime("%Y-%m-%d %H:%M:%S")
         return None
     except:
         return None
 
-# Step 2: Post item to Podio app
 def send_to_podio(data):
     try:
         import requests
@@ -1391,18 +1428,15 @@ def send_to_podio(data):
         # Build payload with only non-empty fields
         fields = {}
         
-        # Address - required field, must have value
         if data.get('Address'):
             fields["address"] = data.get('Address', '')
         
-        # Price - only add if has valid value
         if data.get('Price') and data.get('Price') > 0:
             fields["listing-price"] = {
                 "value": data.get('Price', 0),
                 "currency": "USD"
             }
         
-        # Listing date - only add if has valid date
         listing_date = data.get("Listing Date") or data.get("Sold Date") or data.get("Snapshot Date")
         if listing_date and str(listing_date).strip():
             formatted_date = convertToPodioDatetime(listing_date)
@@ -1412,19 +1446,13 @@ def send_to_podio(data):
                     "end": formatted_date
                 }
         
-        # Agent name - only add if has value
         if data.get("Agent Name") and str(data.get("Agent Name")).strip():
             fields["agent-name"] = data.get("Agent Name", "")
         
-        # Square feet - only add if has valid value
         if data.get("Size (sqft)") and data.get("Size (sqft)") > 0:
             fields["square-feet"] = str(data.get("Size (sqft)", ""))
         
-        # Format final payload
         payload = {"fields": fields}
-        
-        # Debug: print payload to see what's being sent
-        # st.write("Debug - Payload being sent to Podio:", payload)
         
         res = requests.post(url, json=payload, headers=headers)
         
@@ -1438,40 +1466,16 @@ def send_to_podio(data):
     except Exception as e:
         return False, f"Error sending to Podio: {str(e)}"
 
-
 # === Main App ===
 def main():
-    # Initialize session state very early and make it persistent  
-    if 'logged_in' not in st.session_state:
-        st.session_state.logged_in = False
-    if 'username' not in st.session_state:
-        st.session_state.username = None
-    if 'selected_candidate_idx' not in st.session_state:
-        st.session_state.selected_candidate_idx = None
-    
-    # Persistent filters - use underscore prefix for widget keys
-    if 'enable_distance_filter' not in st.session_state:
-        st.session_state.enable_distance_filter = True
-    if 'enable_price_filter' not in st.session_state:
-        st.session_state.enable_price_filter = False
-    if 'enable_size_filter' not in st.session_state:
-        st.session_state.enable_size_filter = False  
-    if 'enable_year_filter' not in st.session_state:
-        st.session_state.enable_year_filter = False
-    if 'max_distance' not in st.session_state:
-        st.session_state.max_distance = 10.0
-    if 'price_range' not in st.session_state:
-        st.session_state.price_range = (50000, 1000000)
-    if 'size_range' not in st.session_state:
-        st.session_state.size_range = (800, 4000)
-    if 'year_range' not in st.session_state:
-        st.session_state.year_range = (1980, 2020)
+    # Initialize session state FIRST
+    init_session_state()
     
     st.title("🏠 Lonestar Real Estate - Property Manager")
     st.markdown("Add candidate and comp properties with automatic coordinate enrichment and distance analysis.")
     
-    # Configuration - Updated for folder structure
-    bucket_name = 'shinka-realestate-gold' # 'lonestar-realestate-test' # 
+    # Configuration
+    bucket_name = 'shinka-realestate-gold'
     candidate_file = 'candidate/candidate.json'
     comp_file = 'comps/comps.json'
     
@@ -1484,19 +1488,19 @@ def main():
     # Show login status in sidebar
     if st.session_state.logged_in:
         st.sidebar.success(f"✅ Logged in as: {st.session_state.username}")
-        if st.sidebar.button("🚪 Logout"):
-            # Clear all session state on logout
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
+        if st.sidebar.button("🚪 Logout", key="sidebar_logout"):
+            # Proper logout - clear only auth related state
+            st.session_state.logged_in = False
+            st.session_state.username = None
             st.rerun()
     else:
         st.sidebar.warning("🔒 Not logged in")
     
-    # Get API key from secrets (don't show input to user)
+    # Get API key from secrets
     locationiq_api_key = st.secrets.get("LOCATIONIQ_API_KEY", "")
     
-    # Load existing data
-    if st.sidebar.button("🔄 Refresh Data from S3"):
+    # Load existing data with refresh button
+    if st.sidebar.button("🔄 Refresh Data from S3", key="refresh_data"):
         st.cache_data.clear()
     
     @st.cache_data(ttl=60)
@@ -1507,24 +1511,22 @@ def main():
     
     candidates, comps = load_data()
 
-    # Main content tabs - always show tabs but control content
+    # Main content tabs
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["🔐 Login", "📝 Add Property", "🏠 Candidates", "📊 Comps", "📏 Distance Analysis"])
     
     # === TAB 1: Login ===
     with tab1:
         st.header("🔐 User Login")
         
-        # Check if already logged in and show logout option
         if st.session_state.logged_in:
             st.success(f"✅ Currently logged in as: **{st.session_state.username}**")
             st.info("You can now access all features of the application. Use the other tabs to manage properties.")
             
             col1, col2 = st.columns([1, 3])
             with col1:
-                if st.button("🚪 Logout", type="secondary"):
-                    # Clear all session state on logout
-                    for key in list(st.session_state.keys()):
-                        del st.session_state[key]
+                if st.button("🚪 Logout", type="secondary", key="main_logout"):
+                    st.session_state.logged_in = False
+                    st.session_state.username = None
                     st.rerun()
             with col2:
                 st.markdown("### Quick Navigation")
@@ -1535,7 +1537,6 @@ def main():
                 - **📏 Distance Analysis**: Analyze distances and find ideal comps
                 """)
         else:
-            # Show login form only if not logged in
             with st.form("login_form"):
                 col1, col2 = st.columns([1, 2])
                 
@@ -1548,8 +1549,7 @@ def main():
                     
                     if login_submitted:
                         if username and password:
-                            # Add your authentication logic here
-                            if username == "admin" and password == "password123":  # Example credentials
+                            if username == "admin" and password == "password123":
                                 st.success("✅ Login successful!")
                                 st.session_state.logged_in = True
                                 st.session_state.username = username
@@ -1572,9 +1572,6 @@ def main():
                         "- Username: admin\n"
                         "- Password: password123"
                     )
-        
-        # IMPORTANT: Stop here - no more content should appear in this tab
-        # The property form you're seeing is a bug and should not be here
 
     # Check if user is logged in before showing other tabs content
     if not st.session_state.logged_in:
@@ -1601,16 +1598,15 @@ def main():
         with tab2:
             st.header("Add New Property")
             
-            # Property type selection - use session state
-            if 'property_type' not in st.session_state:
-                st.session_state.property_type = "candidate"
-            
-            st.session_state.property_type = st.selectbox(
+            # Property type selection
+            property_type = st.selectbox(
                 "Property Type",
                 options=["candidate", "comp"],
                 format_func=lambda x: "Candidate" if x == "candidate" else "Comp",
-                index=0 if st.session_state.property_type == "candidate" else 1
+                index=0 if st.session_state.property_type == "candidate" else 1,
+                key="prop_type_selector"
             )
+            st.session_state.property_type = property_type
             
             with st.form("property_form", clear_on_submit=True):
                 col1, col2 = st.columns(2)
@@ -1638,7 +1634,7 @@ def main():
                     )
                     
                     # Conditional date input based on property type
-                    if st.session_state.property_type == "candidate":
+                    if property_type == "candidate":
                         listing_date = st.date_input(
                             "Listing Date *",
                             value=date.today(),
@@ -1665,27 +1661,27 @@ def main():
                         max_value=2030,
                         value=None
                     )
+                    
                     story = st.number_input(
                         "Story (optional)",
                         min_value=1,
                         max_value=10,
                         value=None,
                         help="Number of stories/floors in the property"
-                    )                
+                    )
+                    
                     agent_name = st.text_input(
                         "Agent Name (optional)",
                         placeholder="e.g., John Smith"
                     )
-                    
-
                     
                     # Auto-calculate price per sq ft
                     if size_sqft and price:
                         price_per_sqft = round(price / size_sqft, 2)
                         st.metric("Price/SqFt (calculated)", f"${price_per_sqft}")
                 
-                # Submit button with dynamic text
-                button_text = f"Add {st.session_state.property_type.title()}"
+                # Submit button
+                button_text = f"Add {property_type.title()}"
                 submitted = st.form_submit_button(
                     button_text, 
                     type="primary",
@@ -1705,7 +1701,7 @@ def main():
                     if missing_fields:
                         st.error(f"Please fill in all required fields: {', '.join(missing_fields)}")
                     else:
-                        with st.spinner(f"Adding {st.session_state.property_type}..."):
+                        with st.spinner(f"Adding {property_type}..."):
                             # Get coordinates
                             lat, lon = get_coordinates(address.strip(), locationiq_api_key)
                             
@@ -1731,8 +1727,8 @@ def main():
                                 if story:
                                     new_property["Story"] = story
                                 
-                                # Add type-specific fields with user-provided dates
-                                if st.session_state.property_type == "candidate":
+                                # Add type-specific fields
+                                if property_type == "candidate":
                                     new_property["Listing Date"] = str(listing_date)
                                     new_property["URL"] = f"https://www.har.com/mapsearch?quicksearch={address.replace(' ', '+')}&view=map"
                                 else:
@@ -1740,11 +1736,9 @@ def main():
                                     new_property["URL"] = f"https://www.har.com/mapsearch?quicksearch={address.replace(' ', '+')}&view=map"
                                 
                                 # Add to existing data
-                                if st.session_state.property_type == "candidate":
+                                if property_type == "candidate":
                                     candidates_copy = candidates.copy()
-                                    st.write(f"before update row count: {len(candidates_copy)}")
                                     candidates_copy.append(new_property)
-                                    st.write(f"after update row count: {len(candidates_copy)}")
                                     
                                     if upload_to_s3(s3_client, bucket_name, candidate_file, candidates_copy):
                                         st.cache_data.clear()
@@ -1752,9 +1746,7 @@ def main():
                                         st.rerun()
                                 else:
                                     comps_copy = comps.copy()
-                                    st.write(f"before update comp count: {len(comps_copy)}")
                                     comps_copy.append(new_property)
-                                    st.write(f"after update comp count: {len(comps_copy)}")
                                     
                                     if upload_to_s3(s3_client, bucket_name, comp_file, comps_copy):
                                         st.cache_data.clear()
@@ -1782,7 +1774,7 @@ def main():
             st.header("📏 Distance Analysis & Ideal Comps")
             
             if candidates and comps:
-                # Advanced Filter Controls
+                # Advanced Filter Controls - Use callback pattern to avoid rerun issues
                 st.subheader("🎛️ Advanced Filter Controls")
                 
                 # Create filter columns
@@ -1790,75 +1782,89 @@ def main():
                 
                 with filter_col1:
                     st.write("**Distance Filter**")
-                    # Use session state for persistent filter state
-                    st.session_state.enable_distance_filter = st.checkbox(
+                    enable_distance = st.checkbox(
                         "Enable Distance Filter", 
-                        value=st.session_state.enable_distance_filter
+                        value=st.session_state.enable_distance_filter,
+                        key="distance_filter_checkbox"
                     )
-                    if st.session_state.enable_distance_filter:
-                        st.session_state.max_distance = st.slider(
+                    st.session_state.enable_distance_filter = enable_distance
+                    
+                    if enable_distance:
+                        max_distance_val = st.slider(
                             "Max Distance (mi)", 
                             0.5, 50.0, 
                             value=st.session_state.max_distance, 
-                            step=0.5
+                            step=0.5,
+                            key="distance_slider"
                         )
-                    else:
-                        st.session_state.max_distance = None
+                        st.session_state.max_distance = max_distance_val
                 
                 with filter_col2:
                     st.write("**Price Filter (Comps)**")
-                    st.session_state.enable_price_filter = st.checkbox(
+                    enable_price = st.checkbox(
                         "Enable Price Filter", 
-                        value=st.session_state.enable_price_filter
+                        value=st.session_state.enable_price_filter,
+                        key="price_filter_checkbox"
                     )
-                    if st.session_state.enable_price_filter:
-                        st.session_state.price_range = st.slider(
+                    st.session_state.enable_price_filter = enable_price
+                    
+                    if enable_price:
+                        price_range_val = st.slider(
                             "Comp Price Range ($)", 
                             0, 2000000, 
                             value=st.session_state.price_range, 
                             step=10000, 
-                            format="$%d"
+                            format="$%d",
+                            key="price_range_slider"
                         )
-                        price_min, price_max = st.session_state.price_range
+                        st.session_state.price_range = price_range_val
+                        price_min, price_max = price_range_val
                     else:
                         price_min = price_max = None
                 
                 with filter_col3:
                     st.write("**Size Filter (Comps)**")
-                    st.session_state.enable_size_filter = st.checkbox(
+                    enable_size = st.checkbox(
                         "Enable Size Filter", 
-                        value=st.session_state.enable_size_filter
+                        value=st.session_state.enable_size_filter,
+                        key="size_filter_checkbox"
                     )
-                    if st.session_state.enable_size_filter:
-                        st.session_state.size_range = st.slider(
+                    st.session_state.enable_size_filter = enable_size
+                    
+                    if enable_size:
+                        size_range_val = st.slider(
                             "Comp Size Range (sqft)", 
                             200, 10000, 
                             value=st.session_state.size_range, 
-                            step=50
+                            step=50,
+                            key="size_range_slider"
                         )
-                        size_min, size_max = st.session_state.size_range
+                        st.session_state.size_range = size_range_val
+                        size_min, size_max = size_range_val
                     else:
                         size_min = size_max = None
                 
                 with filter_col4:
                     st.write("**Year Filter (Comps)**")
-                    st.session_state.enable_year_filter = st.checkbox(
+                    enable_year = st.checkbox(
                         "Enable Year Filter", 
-                        value=st.session_state.enable_year_filter
+                        value=st.session_state.enable_year_filter,
+                        key="year_filter_checkbox"
                     )
-                    if st.session_state.enable_year_filter:
-                        st.session_state.year_range = st.slider(
+                    st.session_state.enable_year_filter = enable_year
+                    
+                    if enable_year:
+                        year_range_val = st.slider(
                             "Comp Year Range", 
                             1900, 2030, 
                             value=st.session_state.year_range, 
-                            step=1
+                            step=1,
+                            key="year_range_slider"
                         )
-                        year_min, year_max = st.session_state.year_range
+                        st.session_state.year_range = year_range_val
+                        year_min, year_max = year_range_val
                     else:
                         year_min = year_max = None
-                
-                # Apply filters to candidates (no filters, just show all)
-                filtered_candidates = candidates
                 
                 st.divider()
                 
@@ -1873,38 +1879,39 @@ def main():
                 col1, col2 = st.columns([1, 1])
                 
                 with col1:
-                    st.subheader(f"🏠 Select Candidate Property ({len(filtered_candidates)} total)")
+                    st.subheader(f"🏠 Select Candidate Property ({len(candidates)} total)")
                     
-                    # Search box for candidates - use session state to persist search
-                    if 'search_term' not in st.session_state:
-                        st.session_state.search_term = ""
-                    
-                    st.session_state.search_term = st.text_input(
+                    # Search box for candidates with unique key
+                    search_term = st.text_input(
                         "🔍 Search candidates by address", 
                         value=st.session_state.search_term,
-                        placeholder="Type to search..."
+                        placeholder="Type to search...",
+                        key="candidate_search_input"
                     )
+                    # Update session state only if changed to avoid unnecessary reruns
+                    if search_term != st.session_state.search_term:
+                        st.session_state.search_term = search_term
+                        st.session_state.page_number = 1  # Reset to first page on search
                     
                     # Filter candidates by search term
-                    display_candidates = filtered_candidates
+                    display_candidates = candidates
                     if st.session_state.search_term:
-                        display_candidates = [c for c in filtered_candidates 
+                        display_candidates = [c for c in candidates 
                                             if st.session_state.search_term.lower() in c['Address'].lower()]
                     
-                    # Pagination for large datasets - use session state
+                    # Pagination for large datasets
                     candidates_per_page = 10
                     total_pages = math.ceil(len(display_candidates) / candidates_per_page)
                     
                     if total_pages > 1:
-                        if 'page_number' not in st.session_state:
-                            st.session_state.page_number = 1
-                            
-                        st.session_state.page_number = st.selectbox(
+                        page_num = st.selectbox(
                             f"Page (showing {len(display_candidates)} candidates)", 
                             range(1, total_pages + 1), 
-                            index=st.session_state.page_number - 1
+                            index=min(st.session_state.page_number - 1, total_pages - 1),
+                            key="page_selector"
                         )
-                        start_idx = (st.session_state.page_number - 1) * candidates_per_page
+                        st.session_state.page_number = page_num
+                        start_idx = (page_num - 1) * candidates_per_page
                         end_idx = start_idx + candidates_per_page
                         page_candidates = display_candidates[start_idx:end_idx]
                     else:
@@ -1940,8 +1947,8 @@ def main():
                                     """, unsafe_allow_html=True)
                                 
                                 with btn_col:
-                                    # Action buttons in vertical layout (to avoid nesting columns too deep)
-                                    if st.button("Select", key=f"select_candidate_{original_idx}", 
+                                    # Action buttons with unique keys to avoid conflicts
+                                    if st.button("Select", key=f"select_cand_{original_idx}_{i}", 
                                                 type="primary" if is_selected else "secondary",
                                                 help="Select this candidate",
                                                 use_container_width=True):
@@ -1954,12 +1961,12 @@ def main():
                                                     help="View property listing",
                                                     use_container_width=True)
                                     else:
-                                        st.button("View", key=f"view_candidate_{original_idx}",
+                                        st.button("View", key=f"view_cand_{original_idx}_{i}",
                                                 disabled=True, help="No URL available",
                                                 use_container_width=True)
                                     
-                                    # Send to Podio button
-                                    if st.button("Podio", key=f"podio_candidate_{original_idx}",
+                                    # Send to Podio button with unique key
+                                    if st.button("Podio", key=f"podio_cand_{original_idx}_{i}",
                                                 help="Send to Podio",
                                                 use_container_width=True):
                                         success, message = send_to_podio(candidate)
@@ -1996,12 +2003,12 @@ def main():
                             year_min, year_max, distance_filter
                         )
                         
-                        # Find ideal comps from filtered comps (with updated criteria)
-                        ideal_comps = find_ideal_comps(selected_candidate, filtered_comps, None)  # Don't apply distance again
+                        # Find ideal comps from filtered comps
+                        ideal_comps = find_ideal_comps(selected_candidate, filtered_comps, None)
                         
                         st.subheader(f"🎯 Ideal Comps Found: {len(ideal_comps)}")
                         
-                        # Show criteria (updated to include price criteria)
+                        # Show criteria
                         candidate_size = selected_candidate.get('Size (sqft)', 0)
                         candidate_year = selected_candidate.get('Year Built', None)
                         candidate_price = selected_candidate.get('Price', 0)
